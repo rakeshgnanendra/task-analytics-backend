@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////////////////////////////////////
+// ENUMS
+//////////////////////////////////////////////////////
+
+enum GlobalRole {
+  SUPER_ADMIN
+  DELIVERY_HEAD
+  USER
+EMPLOYEE
+}
+
+enum ProjectRole {
+  PROJECT_MANAGER
+  TEAM_MEMBER
+}
+
+model TaskFile {
+  id String @id @default(uuid())
+
+  fileName String
+  fileUrl  String
+  fileSize Int
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id])
+
+  uploadedById  String
+  uploadedBy    User              @relation(fields: [uploadedById], references: [id])
+  downloadCount Int               @default(0)
+  createdAt     DateTime          @default(now())
+  downloads     FileDownloadLog[]
+
+  @@index([taskId])
+}
+
+model FileDownloadLog {
+  id String @id @default(uuid())
+
+  fileId String
+  file   TaskFile @relation(fields: [fileId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  downloadedAt DateTime @default(now())
+
+  @@index([fileId])
+  @@index([userId])
+}
+
+enum TaskStatus {
+  CREATED
+  IN_PROGRESS
+  COMPLETED
+  REWORK
+  CONFIRMED
+  REJECTED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ProjectStatus {
+  ACTIVE
+  INACTIVE
+}
+
+
+
+//////////////////////////////////////////////////////
+// MODELS
+//////////////////////////////////////////////////////
+
+model User {
+  id       String     @id @default(uuid())
+  email    String     @unique
+  password String
+  deliveryHeadProjects Project[] @relation("DeliveryHeadProjects") 
+   firstName String
+  lastName  String
+  username       String @unique 
+  role     GlobalRole @default(EMPLOYEE)
+
+  isActive Boolean    @default(true)   // ✅ ADD THIS
+
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  projectLinks ProjectMember[]
+
+  createdTasks  Task[] @relation("CreatedTasks")
+  assignedTasks Task[] @relation("AssignedTasks")
+
+  activityLogs ActivityLog[]
+
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  uploadedFiles TaskFile[]
+  downloads     FileDownloadLog[]
+
+  @@index([departmentId])
+}
+
+//////////////////////////////////////////////////////
+
+model Department {
+  id   String @id @default(uuid())
+  name String @unique
+
+  users User[]
+  tasks Task[]
+
+  createdAt DateTime @default(now())
+}
+
+//////////////////////////////////////////////////////
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+    deliveryHeadId String?   // 👈 optional first
+  deliveryHead   User?     @relation("DeliveryHeadProjects", fields: [deliveryHeadId], references: [id])
+  members ProjectMember[]
+  tasks   Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+//////////////////////////////////////////////////////
+
+model ProjectMember {
+  id String @id @default(uuid())
+
+  userId    String
+  projectId String
+  role      ProjectRole
+
+  user    User    @relation(fields: [userId], references: [id])
+  project Project @relation(fields: [projectId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+}
+
+//////////////////////////////////////////////////////
+
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  dueDate     DateTime
+  priority    Priority   @default(MEDIUM)
+  status      TaskStatus @default(CREATED)
+  completedAt DateTime? // 🔥 new
+  confirmedAt DateTime? // 🔥 new
+
+  isLocked  Boolean  @default(false) // 🔥 new
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  assignedToId String
+  assignedTo   User   @relation("AssignedTasks", fields: [assignedToId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("CreatedTasks", fields: [createdById], references: [id])
+
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  files        TaskFile[]
+ 
+
+  @@index([projectId])
+  @@index([departmentId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+//////////////////////////////////////////////////////
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+
+  action      String
+  entityType  String   // USER, TASK, PROJECT, FILE
+  entityId    String
+
+  performedBy String
+  user        User     @relation(fields: [performedBy], references: [id])
+
+  metadata    Json?
+
+  createdAt   DateTime @default(now())
+
+  @@index([entityType])
+  @@index([entityId])
+  @@index([performedBy])
+}
+
