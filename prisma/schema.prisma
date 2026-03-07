@@ -14,7 +14,7 @@ datasource db {
 enum GlobalRole {
   SUPER_ADMIN
   DELIVERY_HEAD
-  USER
+ 
 EMPLOYEE
 }
 

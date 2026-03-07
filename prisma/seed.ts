@@ -5,17 +5,27 @@ import * as bcrypt from 'bcrypt'
 const prisma = new PrismaClient()
 
 async function main() {
+
   console.log('Seeding database...')
 
   let department = await prisma.department.findUnique({
-  where: { name: 'IT' },
-})
-
-if (!department) {
-  department = await prisma.department.create({
-    data: { name: 'IT' },
+    where: { name: 'IT' },
   })
-}
+
+  if (!department) {
+    department = await prisma.department.create({
+      data: { name: 'IT' },
+    })
+  }
+
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: 'superadmin@digitalpersonas.com' },
+  })
+
+  if (existingAdmin) {
+    console.log('Super Admin already exists')
+    return
+  }
 
   const superAdminPassword = await bcrypt.hash('Password123', 10)
 
@@ -28,7 +38,7 @@ if (!department) {
       password: superAdminPassword,
       role: GlobalRole.SUPER_ADMIN,
       isActive: true,
-   departmentId: department!.id,
+      departmentId: department.id,
     },
   })
 

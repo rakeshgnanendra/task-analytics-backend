@@ -12,10 +12,15 @@ async function bootstrap() {
       prefix: '/uploads/',
     },
   )
+
   app.enableCors({
-    origin: 'http://localhost:5173', // React app URL
+    origin: [
+      'http://localhost:5173',
+      'https://taskanalyticsdp.netlify.app',
+    ],
     credentials: true,
-  });
+  })
+
   await app.listen(process.env.PORT ?? 3000)
 }
 
