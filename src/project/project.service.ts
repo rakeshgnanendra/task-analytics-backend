@@ -62,9 +62,34 @@ async getProjectById(projectId: string) {
 }
 async getProjects(userId: string, role: string) {
 
-  // DELIVERY HEAD → see all projects under them
-  if (role === 'DELIVERY_HEAD') {
+  // SUPER ADMIN → see all projects
+  if (role === 'SUPER_ADMIN') {
     return this.getAllProjects();
+  }
+
+  // DELIVERY HEAD → see only projects under them
+  if (role === 'DELIVERY_HEAD') {
+    return this.prisma.project.findMany({
+      where: {
+        deliveryHeadId: userId
+      },
+      include: {
+        deliveryHead: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        members: true,
+        tasks: {
+          where: {
+            isDeleted: false
+          }
+        }
+      }
+    });
   }
 
   // PROJECT MANAGER → projects where user is PM
@@ -89,8 +114,6 @@ async getProjects(userId: string, role: string) {
           }
         },
         members: true,
-
-        // 🔥 FIX: exclude deleted tasks
         tasks: {
           where: {
             isDeleted: false
@@ -128,11 +151,9 @@ async getProjects(userId: string, role: string) {
         name: project.name,
         status: project.status,
         deliveryHead: project.deliveryHead,
-
         managerCount: project.members.filter(
           (m) => m.role === 'PROJECT_MANAGER'
         ).length,
-
         totalTasks,
         completedTasks,
         overdueTasks,
@@ -144,9 +165,28 @@ async getProjects(userId: string, role: string) {
 
   return [];
 }
-  getAllProjects() {
-    throw new Error('Method not implemented.');
-  }
+async getAllProjects() {
+
+  return this.prisma.project.findMany({
+    include: {
+      deliveryHead: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true
+        }
+      },
+      members: true,
+      tasks: {
+        where: {
+          isDeleted: false
+        }
+      }
+    }
+  })
+
+}
 
   // 🔥 ADD MEMBER METHOD
   async addProjectMember(
