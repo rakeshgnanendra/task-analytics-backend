@@ -137,8 +137,25 @@ async createTask(
   // =========================
   // 🎟️ GENERATE TICKET ID (FIXED)
   // =========================
+  let nameForCode = title; // fallback
+
+if (projectId) {
+  const project = await this.prisma.project.findUnique({
+    where: { id: projectId },
+  });
+
+  nameForCode = project?.name || title;
+}
+
+if (departmentId) {
+  const department = await this.prisma.department.findUnique({
+    where: { id: departmentId },
+  });
+
+  nameForCode = department?.name || title;
+}
   const ticketId = await this.generateTicketId(
-    title,
+    nameForCode,
     projectId || null,
     departmentId|| null,
   )
