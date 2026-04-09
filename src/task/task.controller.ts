@@ -260,7 +260,7 @@ addComment(
   return this.taskService.addComment(
     taskId,
     message,
-    req.user.id // ⚠️ make sure this exists
+    req.user.userId  // ⚠️ make sure this exists
   );
 }
 @UseGuards(JwtAuthGuard)
