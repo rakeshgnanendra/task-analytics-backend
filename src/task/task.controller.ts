@@ -257,7 +257,11 @@ addComment(
   @Body('message') message: string,
   @Req() req,
 ) {
-  return this.taskService.addComment(taskId, message, req.user.id);
+  return this.taskService.addComment(
+    taskId,
+    message,
+    req.user.id // ⚠️ make sure this exists
+  );
 }
 @UseGuards(JwtAuthGuard)
 @Get(':taskId/comments')

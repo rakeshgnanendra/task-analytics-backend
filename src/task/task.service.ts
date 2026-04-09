@@ -1078,29 +1078,39 @@ async getNextTask(userId: string) {
 
 }
 async addComment(taskId: string, message: string, userId: string) {
-  const task = await this.prisma.task.findUnique({
-  where: { id: taskId },
-});
+  try {
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+    });
 
-if (!task) throw new NotFoundException("Task not found");
+    if (!task) {
+      throw new Error("Task not found");
+    }
 
-// ❌ BLOCK CHAT IF LOCKED OR FINAL
-if (
-  task.status === "CONFIRMED" ||
-  task.status === "REJECTED" ||
-  task.isLocked
-) {
-  throw new ForbiddenException(
-    "Chat is disabled for this task"
-  );
-}
-  return this.prisma.taskComment.create({
-    data: {
-      message,
-      taskId,
-      userId,
-    },
-  });
+    // ❌ Block closed tasks
+    if (
+      task.status === "CONFIRMED" ||
+      task.status === "REJECTED"
+    ) {
+      throw new Error("Chat is disabled for this task");
+    }
+
+    const comment = await this.prisma.taskComment.create({
+      data: {
+        message,
+        taskId,
+        userId,
+      },
+      include: {
+        user: true, // 🔥 VERY IMPORTANT
+      },
+    });
+
+    return comment;
+  } catch (error) {
+    console.error("ADD COMMENT ERROR:", error);
+    throw error;
+  }
 }
 async getComments(taskId: string) {
   return this.prisma.taskComment.findMany({
