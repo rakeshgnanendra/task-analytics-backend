@@ -1077,4 +1077,24 @@ async getNextTask(userId: string) {
   })
 
 }
+async addComment(taskId: string, message: string, userId: string) {
+  return this.prisma.taskComment.create({
+    data: {
+      message,
+      taskId,
+      userId,
+    },
+  });
+}
+async getComments(taskId: string) {
+  return this.prisma.taskComment.findMany({
+    where: { taskId },
+    include: {
+      user: true,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+}
 }

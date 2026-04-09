@@ -250,4 +250,18 @@ getNextTask(@Req() req) {
    console.log("USER FROM TOKEN:", req.user)
   return this.taskService.getNextTask(req.user.userId)
 }
+@UseGuards(JwtAuthGuard)
+@Post(':taskId/comments')
+addComment(
+  @Param('taskId') taskId: string,
+  @Body('message') message: string,
+  @Req() req,
+) {
+  return this.taskService.addComment(taskId, message, req.user.id);
+}
+@UseGuards(JwtAuthGuard)
+@Get(':taskId/comments')
+getComments(@Param('taskId') taskId: string) {
+  return this.taskService.getComments(taskId);
+}
 }
