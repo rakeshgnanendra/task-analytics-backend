@@ -354,6 +354,10 @@ async updateTaskStatus(
   userId: string,
   globalRole: string,
   newStatus: TaskStatus,
+  timeData?: {
+    timeSpentHours?: number
+    timeSpentDays?: number
+  }
 ) {
   // ===============================
   // 1️⃣ FETCH TASK
@@ -501,8 +505,39 @@ if (task.projectId !== null && task.projectId !== undefined) {
   }
 
   if (newStatus === TaskStatus.COMPLETED) {
-    updateData.completedAt = new Date()
+
+  // 🚨 VALIDATION (VERY IMPORTANT)
+  if (
+    !timeData ||
+    (!timeData.timeSpentHours && !timeData.timeSpentDays)
+  ) {
+    throw new BadRequestException(
+      'Time spent (hours or days) is required to complete task',
+    )
   }
+
+  // ❌ Prevent both values
+  if (
+    timeData.timeSpentHours &&
+    timeData.timeSpentDays
+  ) {
+    throw new BadRequestException(
+      'Provide either hours OR days, not both',
+    )
+  }
+
+  updateData.completedAt = new Date()
+
+  // ✅ Save hours
+  if (timeData.timeSpentHours) {
+    updateData.timeSpentHours = timeData.timeSpentHours
+  }
+
+  // ✅ Save days
+  if (timeData.timeSpentDays) {
+    updateData.timeSpentDays = timeData.timeSpentDays
+  }
+}
 
   if (newStatus === TaskStatus.REWORK) {
     updateData.completedAt = null
@@ -1160,7 +1195,8 @@ private async generateTicketId(
   const prefix = projectId ? "P" : "D";
 
   // 2️⃣ Code (first 3 letters of name)
-  const code = name.substring(0, 3).toUpperCase();
+  const cleanName = name.replace(/[^a-zA-Z]/g, "");
+  const code = cleanName.substring(0, 3).toUpperCase();
 
   // 3️⃣ Date YYYYMMDD
   const today = new Date();

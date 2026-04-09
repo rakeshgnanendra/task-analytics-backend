@@ -102,14 +102,18 @@ async getTasks(@CurrentUser() user: any) {
 async updateStatus(
   @Param('id') taskId: string,
   @CurrentUser() user: any,
-  @Body('status') status: TaskStatus,
+  @Body() body: any, // ✅ get full body
 ) {
   return this.taskService.updateTaskStatus(
     taskId,
     user.userId,
     user.role,
-    status,
-  )
+    body.status, // ✅ correct
+    {
+      timeSpentHours: body.timeSpentHours,
+      timeSpentDays: body.timeSpentDays,
+    }
+  );
 }
 @Get(':id/logs')
 @UseGuards(JwtAuthGuard)

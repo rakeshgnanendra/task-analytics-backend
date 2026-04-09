@@ -110,6 +110,8 @@ model Task {
   dueDate      DateTime
   priority     Priority    @default(MEDIUM)
   status       TaskStatus  @default(CREATED)
+  timeSpentHours Float?
+timeSpentDays  Float?
   startedAt    DateTime?
   completedAt  DateTime?
   confirmedAt  DateTime?
