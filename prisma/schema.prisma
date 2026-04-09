@@ -104,6 +104,7 @@ model TaskComment {
 }
 model Task {
   id           String      @id @default(uuid())
+  ticketId     String   @unique 
   title        String
   description  String?
   dueDate      DateTime

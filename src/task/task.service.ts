@@ -26,7 +26,7 @@ export class TaskService {
   // =============================
   // CREATE TASK
   // =============================
- async createTask(
+async createTask(
   projectId: string | null,
   departmentId: string | null,
   creatorId: string,
@@ -60,7 +60,7 @@ export class TaskService {
   }
 
   // =========================
-  // 🔵 PROJECT FLOW (existing)
+  // 🔵 PROJECT FLOW
   // =========================
   if (projectId) {
 
@@ -103,7 +103,7 @@ export class TaskService {
   }
 
   // =========================
-  // 🟢 DEPARTMENT FLOW (NEW)
+  // 🟢 DEPARTMENT FLOW
   // =========================
   if (departmentId) {
 
@@ -115,14 +115,12 @@ export class TaskService {
       throw new NotFoundException('Department not found')
     }
 
-    // ✅ Only Delivery Head can create department tasks
     if (creatorRole !== 'DELIVERY_HEAD') {
       throw new ForbiddenException(
         'Only Delivery Head can create tasks for departments',
       )
     }
 
-    // ✅ Check assigned user belongs to same department
     const user = await this.prisma.user.findUnique({
       where: { id: assignedToId },
     })
@@ -135,6 +133,17 @@ export class TaskService {
 
     taskData.departmentId = departmentId
   }
+
+  // =========================
+  // 🎟️ GENERATE TICKET ID (FIXED)
+  // =========================
+  const ticketId = await this.generateTicketId(
+    title,
+    projectId || null,
+    departmentId|| null,
+  )
+
+  taskData.ticketId = ticketId  // ✅ IMPORTANT FIX
 
   // =========================
   // 🧱 CREATE TASK
@@ -171,7 +180,8 @@ export class TaskService {
     {
       title: task.title,
       priority: task.priority,
-      type: projectId ? 'PROJECT' : 'DEPARTMENT', // 🔥 NEW
+      ticketId: task.ticketId, // ✅ add this (nice for logs)
+      type: projectId ? 'PROJECT' : 'DEPARTMENT',
     }
   )
 
@@ -1123,5 +1133,45 @@ async getComments(taskId: string) {
     },
   });
 }
+private async generateTicketId(
+  name: string,
+  projectId: string | null,
+  departmentId: string | null,
+): Promise<string> {
 
+  // 1️⃣ Prefix
+  const prefix = projectId ? "P" : "D";
+
+  // 2️⃣ Code (first 3 letters of name)
+  const code = name.substring(0, 3).toUpperCase();
+
+  // 3️⃣ Date YYYYMMDD
+  const today = new Date();
+  const date = today.toISOString().slice(0, 10).replace(/-/g, "");
+
+  // 4️⃣ Start & end of day
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date();
+  endOfDay.setHours(23, 59, 59, 999);
+
+  // 5️⃣ Count today's tasks
+  const count = await this.prisma.task.count({
+    where: {
+      createdAt: {
+        gte: startOfDay,
+        lte: endOfDay,
+      },
+      projectId: projectId || null,
+      departmentId: departmentId || null,
+    },
+  });
+
+  // 6️⃣ Sequence
+  const sequence = String(count + 1).padStart(3, "0");
+
+  // 7️⃣ Final Ticket ID
+  return `${prefix}-${code}-${date}-${sequence}`;
+}
 }
