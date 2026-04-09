@@ -56,4 +56,70 @@ export class DepartmentService {
       where: { id },
     })
   }
+  async getDepartmentTasks(departmentId: string) {
+  return this.prisma.task.findMany({
+    where: {
+      departmentId,
+      isDeleted: false,
+    },
+    include: {
+      assignedTo: true,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+}
+async getDepartmentDashboard(departmentId: string) {
+
+  const tasks = await this.prisma.task.findMany({
+    where: {
+      departmentId,
+      isDeleted: false
+    }
+  });
+
+  const total = tasks.length;
+
+  const completed = tasks.filter(
+    t => t.status === 'CONFIRMED'
+  ).length;
+
+  const inProgress = tasks.filter(
+    t => t.status === 'IN_PROGRESS'
+  ).length;
+
+  const overdue = tasks.filter(
+    t =>
+      new Date(t.dueDate) < new Date() &&
+      t.status !== 'CONFIRMED'
+  ).length;
+
+  const completionRate =
+    total === 0
+      ? 0
+      : Math.round((completed / total) * 100);
+
+  return {
+    total,
+    completed,
+    inProgress,
+    overdue,
+    completionRate
+  };
+
+}
+async assignUser(departmentId: string, userId: string) {
+  return this.prisma.user.update({
+    where: { id: userId },
+    data: { departmentId },
+  })
+}
+async getUsers(departmentId: string) {
+  return this.prisma.user.findMany({
+    where: {
+      departmentId: departmentId,
+    },
+  })
+}
 }

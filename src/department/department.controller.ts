@@ -55,4 +55,27 @@ export class DepartmentController {
     this.checkAdmin(req.user.role)
     return this.service.delete(id)
   }
+    @UseGuards(JwtAuthGuard)
+  @Get(':id/tasks')
+getDepartmentTasks(@Param('id') id: string) {
+  return this.service.getDepartmentTasks(id);
+}
+@UseGuards(JwtAuthGuard)
+@Get(':id/dashboard')
+getDepartmentDashboard(@Param('id') id: string) {
+  return this.service.getDepartmentDashboard(id);
+}
+@UseGuards(JwtAuthGuard)
+@Patch(':id/assign-user')
+assignUser(
+  @Param('id') departmentId: string,
+  @Body('userId') userId: string,
+) {
+  return this.service.assignUser(departmentId, userId)
+}
+@UseGuards(JwtAuthGuard)
+@Get(':id/users')
+getDepartmentUsers(@Param('id') id: string) {
+  return this.service.getUsers(id)
+}
 }

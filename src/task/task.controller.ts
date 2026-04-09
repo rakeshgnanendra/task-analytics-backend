@@ -48,6 +48,7 @@ async createTask(
   @CurrentUser() user: any,
   @UploadedFiles() files: Express.Multer.File[],
   @Body("projectId") projectId: string,
+  @Body("departmentId") departmentId: string, // ✅ ADD THIS
   @Body("title") title: string,
   @Body("description") description: string,
   @Body("assignedToId") assignedToId: string,
@@ -56,14 +57,16 @@ async createTask(
 ) {
 
   return this.taskService.createTask(
-    projectId,
-    user.userId,
-    title,
-    description,
-    assignedToId,
-    new Date(dueDate),
-    priority,
-    files
+    projectId || null,        // 1
+    departmentId || null,     // 2 ❗ NEW
+    user.userId,              // 3
+    user.role,                // 4 ❗ NEW
+    title,                    // 5
+    description,              // 6
+    assignedToId,             // 7
+    new Date(dueDate),        // 8
+    priority,                 // 9
+    files                     // 10
   )
 
 }

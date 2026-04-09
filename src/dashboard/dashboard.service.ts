@@ -620,4 +620,37 @@ async getUpcomingDeadlines(userId: string) {
     }
   })
 }
+async getDepartmentStats() {
+
+  const departments = await this.prisma.department.findMany({
+    include: {
+      tasks: {
+        where: { isDeleted: false }
+      }
+    }
+  });
+
+  return departments.map(dep => {
+
+    const total = dep.tasks.length;
+
+    const completed = dep.tasks.filter(
+      t => t.status === 'CONFIRMED'
+    ).length;
+
+    const overdue = dep.tasks.filter(
+      t =>
+        new Date(t.dueDate) < new Date() &&
+        t.status !== 'CONFIRMED'
+    ).length;
+
+    return {
+      id: dep.id,
+      name: dep.name,
+      totalTasks: total,
+      completedTasks: completed,
+      overdueTasks: overdue,
+    };
+  });
+}
 }

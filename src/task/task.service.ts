@@ -26,9 +26,11 @@ export class TaskService {
   // =============================
   // CREATE TASK
   // =============================
-  async createTask(
-  projectId: string,
+ async createTask(
+  projectId: string | null,
+  departmentId: string | null,
   creatorId: string,
+  creatorRole: string,
   title: string,
   description: string,
   assignedToId: string,
@@ -37,55 +39,113 @@ export class TaskService {
   files?: Express.Multer.File[],
 ) {
 
-  const project = await this.prisma.project.findUnique({
-    where: { id: projectId },
-  })
-
-  if (!project) {
-    throw new NotFoundException('Project not found')
+  // ❌ Validation: both missing
+  if (!projectId && !departmentId) {
+    throw new BadRequestException('Project or Department is required')
   }
 
-  const managerLink = await this.prisma.projectMember.findFirst({
-    where: {
-      projectId,
-      userId: creatorId,
-      role: ProjectRole.PROJECT_MANAGER,
-    },
-  })
-
-  if (!managerLink) {
-    throw new ForbiddenException(
-      'Only Project Manager can create tasks in this project',
-    )
+  // ❌ Validation: both present
+  if (projectId && departmentId) {
+    throw new BadRequestException('Task cannot belong to both project and department')
   }
 
-  const memberLink = await this.prisma.projectMember.findFirst({
-    where: {
-      projectId,
-      userId: assignedToId,
-    },
-  })
-
-  if (!memberLink) {
-    throw new BadRequestException(
-      'Assigned user is not a member of this project',
-    )
+  let taskData: any = {
+    title,
+    description,
+    createdById: creatorId,
+    assignedToId,
+    dueDate,
+    priority,
+    status: TaskStatus.CREATED,
   }
 
+  // =========================
+  // 🔵 PROJECT FLOW (existing)
+  // =========================
+  if (projectId) {
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    })
+
+    if (!project) {
+      throw new NotFoundException('Project not found')
+    }
+
+    const managerLink = await this.prisma.projectMember.findFirst({
+      where: {
+        projectId,
+        userId: creatorId,
+        role: ProjectRole.PROJECT_MANAGER,
+      },
+    })
+
+    if (!managerLink) {
+      throw new ForbiddenException(
+        'Only Project Manager can create tasks in this project',
+      )
+    }
+
+    const memberLink = await this.prisma.projectMember.findFirst({
+      where: {
+        projectId,
+        userId: assignedToId,
+      },
+    })
+
+    if (!memberLink) {
+      throw new BadRequestException(
+        'Assigned user is not a member of this project',
+      )
+    }
+
+    taskData.projectId = projectId
+  }
+
+  // =========================
+  // 🟢 DEPARTMENT FLOW (NEW)
+  // =========================
+  if (departmentId) {
+
+    const department = await this.prisma.department.findUnique({
+      where: { id: departmentId },
+    })
+
+    if (!department) {
+      throw new NotFoundException('Department not found')
+    }
+
+    // ✅ Only Delivery Head can create department tasks
+    if (creatorRole !== 'DELIVERY_HEAD') {
+      throw new ForbiddenException(
+        'Only Delivery Head can create tasks for departments',
+      )
+    }
+
+    // ✅ Check assigned user belongs to same department
+    const user = await this.prisma.user.findUnique({
+      where: { id: assignedToId },
+    })
+
+    if (!user || user.departmentId !== departmentId) {
+      throw new BadRequestException(
+        'Assigned user is not part of this department',
+      )
+    }
+
+    taskData.departmentId = departmentId
+  }
+
+  // =========================
+  // 🧱 CREATE TASK
+  // =========================
   const task = await this.prisma.task.create({
-    data: {
-      title,
-      description,
-      projectId,
-      createdById: creatorId,
-      assignedToId,
-      dueDate,
-      priority,
-      status: TaskStatus.CREATED,
-    },
+    data: taskData,
   })
 
-  // 🔹 Save attachments if provided
+  // =========================
+  // 📎 FILE UPLOAD
+  // =========================
   if (files && files.length > 0) {
 
     await this.prisma.taskFile.createMany({
@@ -100,6 +160,9 @@ export class TaskService {
 
   }
 
+  // =========================
+  // 🧾 LOGGING
+  // =========================
   await this.logService.createLog(
     'TASK_CREATED',
     'TASK',
@@ -108,9 +171,13 @@ export class TaskService {
     {
       title: task.title,
       priority: task.priority,
+      type: projectId ? 'PROJECT' : 'DEPARTMENT', // 🔥 NEW
     }
   )
 
+  // =========================
+  // 📤 RESPONSE
+  // =========================
   return this.prisma.task.findUnique({
     where: { id: task.id },
 
@@ -131,10 +198,11 @@ export class TaskService {
         }
       },
 
+      project: true,
+      department: true,
       files: true
     }
   })
-
 }
 
   // =============================
@@ -260,33 +328,59 @@ async updateTaskStatus(
   globalRole: string,
   newStatus: TaskStatus,
 ) {
-
-  // 1️⃣ Fetch task first
+  // ===============================
+  // 1️⃣ FETCH TASK
+  // ===============================
   const task = await this.prisma.task.findUnique({
     where: { id: taskId },
   })
 
   if (!task) throw new NotFoundException('Task not found')
 
-  if (task.isLocked)
-    throw new ForbiddenException('Task is locked and cannot be modified')
+  if (task.isLocked) {
+    throw new ForbiddenException(
+      'Task is locked and cannot be modified',
+    )
+  }
+
+  // ===============================
+  // 2️⃣ ROLE CHECKS
+  // ===============================
+
+  // Project Manager check (Project flow)
 
 
-  // 2️⃣ Check if user is PM in this project
+ let isProjectManager = false;
+
+if (task.projectId !== null && task.projectId !== undefined) {
   const managerLink = await this.prisma.projectMember.findFirst({
     where: {
-      projectId: task.projectId!,
+      projectId: task.projectId,
       userId,
       role: ProjectRole.PROJECT_MANAGER,
     },
-  })
+  });
 
-  // 3️⃣ Check if user is assigned TM
+  isProjectManager = !!managerLink;
+}
+
+  // Department Head check (Department flow)
+  let isDepartmentHead = false
+
+  if (task.departmentId) {
+    const department = await this.prisma.department.findUnique({
+      where: { id: task.departmentId },
+    })
+
+    // 👉 Better if you have headId
+    isDepartmentHead = globalRole === 'DELIVERY_HEAD'
+  }
+
+  // Assigned User (Team Member)
   const isAssignedUser = task.assignedToId === userId
 
-
   // ===============================
-  // STATE MACHINE
+  // 3️⃣ STATE MACHINE
   // ===============================
   const allowedTransitions: Record<TaskStatus, TaskStatus[]> = {
     CREATED: [TaskStatus.IN_PROGRESS],
@@ -305,44 +399,78 @@ async updateTaskStatus(
     throw new BadRequestException('Invalid status transition')
   }
 
-
   // ===============================
-  // ROLE RESTRICTIONS
+  // 4️⃣ ROLE RESTRICTIONS
   // ===============================
 
-  // Team Member rules
+  // 🔹 TEAM MEMBER (Assignee)
   if (isAssignedUser) {
-   if (
-  newStatus !== TaskStatus.IN_PROGRESS &&
-  newStatus !== TaskStatus.COMPLETED
-)
-     {
+    if (
+      newStatus !== TaskStatus.IN_PROGRESS &&
+      newStatus !== TaskStatus.COMPLETED
+    ) {
       throw new ForbiddenException(
         'Team Member cannot perform this action',
       )
     }
   }
 
-  // Project Manager rules
-  if (managerLink) {
+  // 🔹 PROJECT MANAGER (Project tasks)
+  if (task.projectId && isProjectManager) {
     if (
-  newStatus !== TaskStatus.CONFIRMED &&
-  newStatus !== TaskStatus.REJECTED &&
-  newStatus !== TaskStatus.REWORK
-)
-     {
+      newStatus !== TaskStatus.CONFIRMED &&
+      newStatus !== TaskStatus.REJECTED &&
+      newStatus !== TaskStatus.REWORK
+    ) {
       throw new ForbiddenException(
         'Project Manager cannot perform this action',
       )
     }
   }
 
+  // 🔹 DEPARTMENT HEAD (Department tasks)
+  if (task.departmentId && isDepartmentHead) {
+    if (
+      newStatus !== TaskStatus.CONFIRMED &&
+      newStatus !== TaskStatus.REJECTED &&
+      newStatus !== TaskStatus.REWORK
+    ) {
+      throw new ForbiddenException(
+        'Department Head cannot perform this action',
+      )
+    }
+  }
+
+  // 🔹 SUPER ADMIN OVERRIDE
+  if (globalRole === 'SUPER_ADMIN') {
+    // Allow everything (no restriction)
+  }
+
   // ===============================
-  // UPDATE DATA
+  // 5️⃣ FINAL SAFETY CHECK
   // ===============================
 
+  const isAllowed =
+    isAssignedUser ||
+    isProjectManager ||
+    isDepartmentHead ||
+    globalRole === 'SUPER_ADMIN'
+
+  if (!isAllowed) {
+    throw new ForbiddenException(
+      'You are not allowed to update this task',
+    )
+  }
+
+  // ===============================
+  // 6️⃣ UPDATE DATA
+  // ===============================
   const updateData: any = {
     status: newStatus,
+  }
+
+  if (newStatus === TaskStatus.IN_PROGRESS) {
+    updateData.startedAt = new Date()
   }
 
   if (newStatus === TaskStatus.COMPLETED) {
@@ -358,11 +486,17 @@ async updateTaskStatus(
     updateData.isLocked = true
   }
 
+  // ===============================
+  // 7️⃣ UPDATE TASK
+  // ===============================
   const updatedTask = await this.prisma.task.update({
     where: { id: taskId },
     data: updateData,
   })
 
+  // ===============================
+  // 8️⃣ LOGGING
+  // ===============================
   await this.logService.createLog(
     'TASK_STATUS_CHANGED',
     'TASK',

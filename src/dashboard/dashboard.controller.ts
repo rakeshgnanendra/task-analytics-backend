@@ -23,4 +23,9 @@ getTeamWorkload(@CurrentUser() user: any) {
 getUpcomingDeadlines(@CurrentUser() user: any) {
   return this.dashboardService.getUpcomingDeadlines(user.userId)
 }
+@Get('department-stats')
+getDepartmentStats() {
+  return this.dashboardService.getDepartmentStats();
+}
+
 }
