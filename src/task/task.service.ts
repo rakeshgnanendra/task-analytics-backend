@@ -1078,6 +1078,22 @@ async getNextTask(userId: string) {
 
 }
 async addComment(taskId: string, message: string, userId: string) {
+  const task = await this.prisma.task.findUnique({
+  where: { id: taskId },
+});
+
+if (!task) throw new NotFoundException("Task not found");
+
+// ❌ BLOCK CHAT IF LOCKED OR FINAL
+if (
+  task.status === "CONFIRMED" ||
+  task.status === "REJECTED" ||
+  task.isLocked
+) {
+  throw new ForbiddenException(
+    "Chat is disabled for this task"
+  );
+}
   return this.prisma.taskComment.create({
     data: {
       message,
@@ -1097,4 +1113,5 @@ async getComments(taskId: string) {
     },
   });
 }
+
 }
