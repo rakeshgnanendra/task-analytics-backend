@@ -100,6 +100,7 @@ model Task {
   dueDate      DateTime
   priority     Priority    @default(MEDIUM)
   status       TaskStatus  @default(CREATED)
+  startedAt    DateTime?
   completedAt  DateTime?
   confirmedAt  DateTime?
   isLocked     Boolean     @default(false)
