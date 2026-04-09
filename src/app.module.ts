@@ -11,9 +11,10 @@ import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { LogsModule } from './logs/logs.module';
 import { DepartmentModule } from './department/department.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
-  imports: [AuthModule, ProjectModule, TaskModule , DashboardModule, UsersModule, PrismaModule, LogsModule, DepartmentModule],
+  imports: [AuthModule, ProjectModule, TaskModule , DashboardModule, UsersModule, PrismaModule, LogsModule, DepartmentModule, ReportsModule],
   controllers: [AppController],
   providers: [AppService],
 })
