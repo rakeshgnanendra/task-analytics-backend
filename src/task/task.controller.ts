@@ -269,7 +269,7 @@ addComment(
 }
 @UseGuards(JwtAuthGuard)
 @Get(':taskId/comments')
-getComments(@Param('taskId') taskId: string) {
-  return this.taskService.getComments(taskId);
+getComments(@Param('taskId') taskId: string, @Req() req) {
+  return this.taskService.getComments(taskId,req.user.id);
 }
 }

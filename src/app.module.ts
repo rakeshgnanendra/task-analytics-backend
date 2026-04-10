@@ -12,9 +12,10 @@ import { PrismaModule } from './prisma/prisma.module';
 import { LogsModule } from './logs/logs.module';
 import { DepartmentModule } from './department/department.module';
 import { ReportsModule } from './reports/reports.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
-  imports: [AuthModule, ProjectModule, TaskModule , DashboardModule, UsersModule, PrismaModule, LogsModule, DepartmentModule, ReportsModule],
+  imports: [AuthModule, ProjectModule, TaskModule , DashboardModule, UsersModule, PrismaModule, LogsModule, DepartmentModule, ReportsModule, ChatModule],
   controllers: [AppController],
   providers: [AppService],
 })

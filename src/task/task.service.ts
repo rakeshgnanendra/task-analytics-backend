@@ -1164,7 +1164,25 @@ async addComment(taskId: string, message: string, userId: string) {
         userId,
       },
       include: {
-        user: true, // 🔥 VERY IMPORTANT
+        user: true,
+      },
+    });
+
+    // 🔥 IMPORTANT: mark sender as seen
+    await this.prisma.taskChatSeen.upsert({
+      where: {
+        userId_taskId: {
+          userId,
+          taskId,
+        },
+      },
+      update: {
+        lastSeen: new Date(),
+      },
+      create: {
+        userId,
+        taskId,
+        lastSeen: new Date(),
       },
     });
 
@@ -1174,7 +1192,25 @@ async addComment(taskId: string, message: string, userId: string) {
     throw error;
   }
 }
-async getComments(taskId: string) {
+async getComments(taskId: string, userId: string) {
+  // 🔥 mark as read when opening chat
+  await this.prisma.taskChatSeen.upsert({
+    where: {
+      userId_taskId: {
+        userId,
+        taskId,
+      },
+    },
+    update: {
+      lastSeen: new Date(),
+    },
+    create: {
+      userId,
+      taskId,
+      lastSeen: new Date(),
+    },
+  });
+
   return this.prisma.taskComment.findMany({
     where: { taskId },
     include: {
