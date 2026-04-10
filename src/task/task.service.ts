@@ -1168,23 +1168,8 @@ async addComment(taskId: string, message: string, userId: string) {
       },
     });
 
-    // 🔥 IMPORTANT: mark sender as seen
-    await this.prisma.taskChatSeen.upsert({
-      where: {
-        userId_taskId: {
-          userId,
-          taskId,
-        },
-      },
-      update: {
-        lastSeen: new Date(),
-      },
-      create: {
-        userId,
-        taskId,
-        lastSeen: new Date(),
-      },
-    });
+
+  
 
     return comment;
   } catch (error) {

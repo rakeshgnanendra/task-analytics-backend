@@ -7,22 +7,22 @@ export class ChatService {
 
   // ✅ Mark chat as read
   async markAsRead(taskId: string, userId: string) {
-    return this.prisma.taskChatSeen.upsert({
-      where: {
-        userId_taskId: {
-          userId,
-          taskId,
-        },
-      },
-      update: {
-        lastSeen: new Date(),
-      },
-      create: {
+     return this.prisma.taskChatSeen.upsert({
+    where: {
+      userId_taskId: {
         userId,
         taskId,
-        lastSeen: new Date(),
       },
-    })
+    },
+    update: {
+      lastSeen: new Date(),
+    },
+    create: {
+      userId,
+      taskId,
+      lastSeen: new Date(),
+    },
+})
   }
 
   // ✅ Get total unread count (for floating bubble)
