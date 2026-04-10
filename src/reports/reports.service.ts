@@ -1,26 +1,136 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/prisma/prisma.service'
-import { Response } from 'express'
+import type { Response } from 'express'
 import PDFDocument from 'pdfkit'
+import * as path from 'path'
+import { filter } from 'rxjs'
 
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
+private getDateRange(
+  duration: string,
+  startDate?: string,
+  endDate?: string,
+) {
+  const today = new Date()
+
+  let start: Date
+  let end: Date = new Date()
+  let label = 'Custom Report'
+
+  if (duration === '1m') {
+    start = new Date()
+    start.setMonth(start.getMonth() - 1)
+    label = 'Monthly Report'
+  }
+
+  else if (duration === '3m') {
+    start = new Date()
+    start.setMonth(start.getMonth() - 3)
+    label = 'Quarterly Report'
+  }
+
+  else if (duration === '6m') {
+    start = new Date()
+    start.setMonth(start.getMonth() - 6)
+    label = 'Half-Yearly Report'
+  }
+
+  else if (duration === 'custom') {
+    if (!startDate || !endDate) {
+      throw new Error('Start and End date required')
+    }
+
+    start = new Date(startDate)
+    end = new Date(endDate)
+    label = 'Custom Report'
+  }
+
+  else {
+    // default fallback
+    start = new Date()
+    start.setMonth(start.getMonth() - 1)
+    label = 'Monthly Report'
+  }
+
+  return { start, end, label }
+}
 
   async generateTaskReport(
     startDate: string,
     endDate: string,
-    userId: string,
+   
     res: Response,
+    type: string,
+  entityId: string,
+  duration: string,
+  
   ) {
-    // 🧠 STEP 1: FETCH DATA
+const { start, end, label } = this.getDateRange(
+  duration, // for now (we will make dynamic later)
+  startDate,
+  endDate,
+)
+const filter: any = {}
+let entityName = 'Team'
+if (type === 'employee') {
+  filter.assignedToId = entityId
+
+  const user = await this.prisma.user.findUnique({
+    where: { id: entityId },
+  })
+
+  if (user) {
+    entityName = `${user.firstName} ${user.lastName}`
+  }
+}
+
+else if (type === 'project') {
+  filter.projectId = entityId
+
+  const project = await this.prisma.project.findUnique({
+    where: { id: entityId },
+  })
+
+  if (project) {
+    entityName = project.name
+  }
+}
+
+else if (type === 'department') {
+  filter.departmentId = entityId
+
+  const dept = await this.prisma.department.findUnique({
+    where: { id: entityId },
+  })
+
+  if (dept) {
+    entityName = dept.name
+  }
+}
+
+else if (type === 'team') {
+  // same as project for now
+  filter.projectId = entityId
+
+  const project = await this.prisma.project.findUnique({
+    where: { id: entityId },
+  })
+
+  if (project) {
+    entityName = project.name
+  }
+}
+
+    // 🧠 FETCH DATA
     const tasks = await this.prisma.task.findMany({
       where: {
-        createdAt: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-        ...(userId && { assignedToId: userId }),
+       createdAt: {
+  gte: start,
+  lte: end,
+},
+       ...filter,
       },
       include: {
         assignedTo: true,
@@ -31,37 +141,40 @@ export class ReportsService {
       },
     })
 
-    // 🧠 STEP 2: SUMMARY CALCULATION
+    // 🧠 SUMMARY
     const totalTasks = tasks.length
     const completed = tasks.filter(t => t.status === 'COMPLETED').length
     const confirmed = tasks.filter(t => t.status === 'CONFIRMED').length
-    const pending = tasks.filter(t => t.status !== 'COMPLETED' && t.status !== 'CONFIRMED').length
+    const pending =
+      tasks.filter(t => t.status !== 'COMPLETED' && t.status !== 'CONFIRMED').length
 
-    const totalHours = tasks.reduce((sum, t) => {
-      return sum + (t.timeSpentHours || 0)
-    }, 0)
+    let totalHours = 0
+    let totalDays = 0
 
-    // 🧠 STEP 3: USER NAME (FOR TITLE)
-    let userName = 'Team'
-    if (userId && tasks[0]?.assignedTo) {
-     userName = `${tasks[0].assignedTo.firstName} ${tasks[0].assignedTo.lastName}`
-    }
+    tasks.forEach(t => {
+      totalHours += t.timeSpentHours || 0
+      totalDays += t.timeSpentDays || 0
+    })
 
-    // 📄 STEP 4: CREATE PDF
+    // 🧠 USER NAME
+    let userName = `${entityName} – ${label}`
+  
+
+    // 📄 PDF INIT
     const doc = new PDFDocument({ margin: 40 })
 
     res.setHeader('Content-Type', 'application/pdf')
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename=report.pdf`,
-    )
+    res.setHeader('Content-Disposition', `attachment; filename=report.pdf`)
 
     doc.pipe(res)
 
-    // 🏢 HEADER (TEMPLATE MATCH)
-    doc.fontSize(12).text('DIGITAL PERSONAS PVT LTD')
+    // 🏢 HEADER
+    doc.font('Helvetica-Bold').fontSize(12).text('DIGITAL PERSONAS PVT LTD')
     doc.text('703, Gowra Fountainhead')
     doc.text('Hitech City, Hyderabad')
+const logoPath = path.join(process.cwd(), 'public', 'DP_logo.png')
+
+doc.image(logoPath, 450, 40, { width: 100 })
     doc.moveDown()
 
     // ➖ LINE
@@ -69,74 +182,138 @@ export class ReportsService {
 
     // 📌 TITLE
     doc.moveDown()
-    doc.fontSize(16).text(
-      `${userName} – Performance Report`,
-      { align: 'center' },
-    )
+   doc.font('Helvetica-Bold').fontSize(16).text(`${userName} – ${label}`, {
+  align: 'center',
+})
+doc.font('Helvetica')
 
-    doc.fontSize(10).text(
-      `${startDate} to ${endDate}`,
-      { align: 'center' },
-    )
+    doc.text(
+  `${start.toISOString().split('T')[0]} to ${end.toISOString().split('T')[0]}`,
+  { align: 'center' }
+)
 
-    doc.moveDown()
+    doc.moveDown(2)
 
     // 📊 SUMMARY
-    doc.fontSize(12).text('Summary')
-    doc.moveDown(0.5)
+    doc.font('Helvetica-Bold').fontSize(12).text('Summary')
+    doc.font('Helvetica')
 
+    doc.moveDown(0.5)
     doc.text(`Total Tasks: ${totalTasks}`)
     doc.text(`Completed: ${completed}`)
     doc.text(`Confirmed: ${confirmed}`)
     doc.text(`Pending: ${pending}`)
-    doc.text(`Total Time: ${totalHours} hrs`)
+    doc.text(
+      `Total Time: ${totalHours} hrs ${
+        totalDays ? `+ ${totalDays} days` : ''
+      }`,
+    )
 
-    doc.moveDown()
+    doc.moveDown(1)
 
-    // 📋 TABLE HEADER
-    doc.fontSize(11).text('Tasks')
-    doc.moveDown(0.5)
+    // =========================
+    // 🔥 PREMIUM TABLE START
+    // =========================
 
-    // Table Columns
-    doc.fontSize(9)
-    doc.text('Title', 40, doc.y, { continued: true })
-    doc.text('Status', 200, doc.y, { continued: true })
-    doc.text('User', 300, doc.y, { continued: true })
-    doc.text('Time', 400, doc.y)
+    const tableTop = doc.y + 20
+doc.y = tableTop 
+const col0 = 40
+    const col1 = col0 + 110   // Title (NO GAP)
+const col2 = col1 + 160   // Status
+const col3 = col2 + 90    // User
+const col4 = col3 + 80 
 
-    doc.moveDown(0.5)
+    // 🔹 HEADER BOXES
+    
+    doc.font('Helvetica-Bold').fontSize(10)
+// Ticket
+doc.rect(col0, tableTop, 110, 20).stroke()
+doc.text('Ticket', col0 + 5, tableTop + 5)
 
-    // ➖ LINE
-    doc.moveTo(40, doc.y).lineTo(550, doc.y).stroke()
+// Title
+doc.rect(col1, tableTop, 160, 20).stroke()
+doc.text('Title', col1 + 5, tableTop + 5)
 
-    // 📋 TABLE ROWS
-    tasks.forEach(task => {
-      doc.moveDown(0.5)
+// Status
+doc.rect(col2, tableTop, 90, 20).stroke()
+doc.text('Status', col2 + 5, tableTop + 5)
 
-      doc.text(task.title, 40, doc.y, { width: 140 })
-      doc.text(task.status, 200, doc.y)
-     const fullName = task.assignedTo
-  ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}`
-  : '-'
+// User
+doc.rect(col3, tableTop, 80, 20).stroke()
+doc.text('User', col3 + 5, tableTop + 5)
 
-doc.text(fullName, 300, doc.y)
-      doc.text(
+// Time
+doc.rect(col4, tableTop, 60, 20).stroke()
+doc.text('Time', col4 + 5, tableTop + 5)
+    let y = tableTop + 20
+
+    doc.font('Helvetica').fontSize(9)
+
+    // 🔹 ROWS
+    tasks.forEach((task, index) => {
+      const fullName = task.assignedTo
+        ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}`
+        : '-'
+
+      const time =
         task.timeSpentHours
           ? `${task.timeSpentHours} hrs`
           : task.timeSpentDays
           ? `${task.timeSpentDays} days`
-          : '-',
-        400,
-        doc.y,
-      )
+          : '-'
+
+      // 🎨 Alternating row color
+      if (index % 2 === 0) {
+       doc.rect(col1, y, 460, 20).fill('#f5f5f5')
+        doc.fillColor('black')
+      }
+
+      // Cells
+     // Ticket
+// Ticket (🔥 FIXED)
+doc.rect(col0, y, 110, 20).stroke()
+doc.text(task.ticketId || '-', col0 + 5, y + 5, {
+  width: 100,
+  lineBreak: false, // 🔥 prevents wrapping
+})
+
+// Title
+doc.rect(col1, y, 160, 20).stroke()
+doc.text(task.title, col1 + 5, y + 5, { width: 150 })
+
+// Status
+doc.rect(col2, y, 90, 20).stroke()
+let statusColor = 'black'
+
+if (task.status === 'COMPLETED') statusColor = 'green'
+else if (task.status === 'REJECTED') statusColor = 'red'
+else if (task.status === 'IN_PROGRESS') statusColor = 'orange'
+else if (task.status === 'CREATED') statusColor = 'blue'
+
+doc.fillColor(statusColor).text(task.status, col2 + 8, y + 7)
+doc.fillColor('black')
+
+
+// User
+doc.rect(col3, y, 80, 20).stroke()
+doc.text(fullName, col3 + 5, y + 5)
+
+// Time
+doc.rect(col4, y, 60, 20).stroke()
+doc.text(time, col4 + 5, y + 5)
+      y += 20
     })
+    doc.y = y + 10
+
+    // =========================
+    // 🔥 PREMIUM TABLE END
+    // =========================
 
     // 📌 FOOTER
     doc.moveDown(2)
-    doc.fontSize(8).text(
-      'Generated by Task Analytics System',
-      { align: 'center' },
-    )
+    doc.fontSize(8).text('Generated by Task Analytics System', {
+      align: 'center',
+    })
 
     doc.end()
   }

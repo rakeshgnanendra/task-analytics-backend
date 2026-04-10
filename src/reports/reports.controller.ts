@@ -10,7 +10,7 @@ import { ReportsService } from './reports.service'
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard'
 
 @Controller('reports')
-@UseGuards(JwtAuthGuard)
+
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
@@ -18,14 +18,19 @@ export class ReportsController {
   async downloadReport(
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
-    @Query('userId') userId: string,
+     @Query('type') type: string,
+  @Query('entityId') entityId: string,
+  @Query('duration') duration: string,
     @Res() res: Response,
   ) {
     return this.reportsService.generateTaskReport(
       startDate,
       endDate,
-      userId,
+     
       res,
+       type,
+  entityId,
+  duration,
     )
   }
 }
