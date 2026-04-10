@@ -16,6 +16,7 @@ export class ReportsController {
 
   @Get('tasks')
   async downloadReport(
+    
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
      @Query('type') type: string,
@@ -24,13 +25,12 @@ export class ReportsController {
     @Res() res: Response,
   ) {
     return this.reportsService.generateTaskReport(
-      startDate,
-      endDate,
-     
-      res,
-       type,
+       duration,
+  startDate,
+  endDate,
+  type,
   entityId,
-  duration,
+  res
     )
   }
 }
