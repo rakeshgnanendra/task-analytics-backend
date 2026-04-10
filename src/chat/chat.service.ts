@@ -26,7 +26,32 @@ export class ChatService {
   }
 
   // ✅ Get total unread count (for floating bubble)
-async getUnreadPerTask(userId: string) {
+async getUnreadCount(userId: string) {
+  const seenRecords = await this.prisma.taskChatSeen.findMany({
+    where: { userId },
+  })
+
+  const conditions = seenRecords.map(seen => ({
+    taskId: seen.taskId,
+    createdAt: {
+      gt: seen.lastSeen || new Date(0),
+    },
+  }))
+
+  const count = await this.prisma.taskComment.count({
+    where: {
+      userId: {
+        not: userId,
+      },
+      OR: conditions.length > 0 ? conditions : undefined,
+    },
+  })
+
+  return { count }
+}
+
+  // ✅ Get unread count per task (for UI highlight)
+ async getUnreadPerTask(userId: string) {
   const tasks = await this.prisma.task.findMany({
     where: {
       // adjust based on role if needed
@@ -63,59 +88,6 @@ async getUnreadPerTask(userId: string) {
         },
       },
     })
-
-    result.push({
-      taskId: task.id,
-      unreadCount: count,
-    })
-  }
-
-  return result
-}
-
-  // ✅ Get unread count per task (for UI highlight)
-  async getUnreadPerTask(userId: string) {
-  const tasks = await this.prisma.task.findMany({
-    where: {
-      OR: [
-        { assignedToId: userId },
-        { createdById: userId },
-      ],
-    },
-    select: { id: true },
-  })
-
-  const taskIds = tasks.map(t => t.id)
-
-  const seenRecords = await this.prisma.taskChatSeen.findMany({
-    where: { userId },
-  })
-
-  const seenMap = new Map(
-    seenRecords.map(s => [s.taskId, s.lastSeen])
-  )
-
-  // 🔥 get all comments in one go
-  const comments = await this.prisma.taskComment.findMany({
-    where: {
-      taskId: { in: taskIds },
-      userId: { not: userId },
-    },
-    select: {
-      taskId: true,
-      createdAt: true,
-    },
-  })
-
-  const result: { taskId: string; unreadCount: number }[] = []
-
-  for (const task of tasks) {
-    const lastSeen = seenMap.get(task.id)
-
-    const count = comments.filter(c => {
-      if (!lastSeen) return true
-      return c.taskId === task.id && c.createdAt > lastSeen
-    }).length
 
     result.push({
       taskId: task.id,
