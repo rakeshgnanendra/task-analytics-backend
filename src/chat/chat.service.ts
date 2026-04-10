@@ -26,28 +26,29 @@ export class ChatService {
   }
 
   // ✅ Get total unread count (for floating bubble)
-  async getUnreadCount(userId: string) {
-    const seenRecords = await this.prisma.taskChatSeen.findMany({
-      where: { userId },
-    })
+async getUnreadCount(userId: string) {
+  const seenRecords = await this.prisma.taskChatSeen.findMany({
+    where: { userId },
+  })
 
-    let total = 0
+  const conditions = seenRecords.map(seen => ({
+    taskId: seen.taskId,
+    createdAt: {
+      gt: seen.lastSeen || new Date(0),
+    },
+  }))
 
-    for (const seen of seenRecords) {
-      const count = await this.prisma.taskComment.count({
-        where: {
-          taskId: seen.taskId,
-          createdAt: {
-            gt: seen.lastSeen,
-          },
-        },
-      })
+  const count = await this.prisma.taskComment.count({
+    where: {
+      userId: {
+        not: userId,
+      },
+      OR: conditions.length > 0 ? conditions : undefined,
+    },
+  })
 
-      total += count
-    }
-
-    return { count: total }
-  }
+  return { count }
+}
 
   // ✅ Get unread count per task (for UI highlight)
   async getUnreadPerTask(userId: string) {
