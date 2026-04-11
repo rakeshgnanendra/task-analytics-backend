@@ -13,9 +13,10 @@ import { LogsModule } from './logs/logs.module';
 import { DepartmentModule } from './department/department.module';
 import { ReportsModule } from './reports/reports.module';
 import { ChatModule } from './chat/chat.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
-  imports: [AuthModule, ProjectModule, TaskModule , DashboardModule, UsersModule, PrismaModule, LogsModule, DepartmentModule, ReportsModule, ChatModule],
+  imports: [AuthModule, ProjectModule, TaskModule , DashboardModule, UsersModule, PrismaModule, LogsModule, DepartmentModule, ReportsModule, ChatModule, NotificationModule],
   controllers: [AppController],
   providers: [AppService],
 })

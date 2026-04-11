@@ -19,6 +19,7 @@ import { LogsService } from 'src/logs/logs.service'
 import { PrismaService } from 'src/prisma/prisma.service'
 @Injectable()
 export class TaskService {
+  [x: string]: any
  
    
   constructor(private prisma: PrismaService, private logService:LogsService) {}
@@ -1149,7 +1150,7 @@ async addComment(taskId: string, message: string, userId: string) {
       throw new Error("Task not found");
     }
 
-    // ❌ Block closed tasks
+    // ✅ BLOCK FIRST
     if (
       task.status === "CONFIRMED" ||
       task.status === "REJECTED"
@@ -1157,6 +1158,7 @@ async addComment(taskId: string, message: string, userId: string) {
       throw new Error("Chat is disabled for this task");
     }
 
+    // ✅ SAVE COMMENT FIRST
     const comment = await this.prisma.taskComment.create({
       data: {
         message,
@@ -1168,10 +1170,61 @@ async addComment(taskId: string, message: string, userId: string) {
       },
     });
 
+    // =========================
+    // 🔥 MENTION LOGIC
+    // =========================
 
-  
+    const mentionMatches = message.match(/@(\w+)/g) || [];
+
+    const mentionedNames = mentionMatches.map(m =>
+      m.replace('@', '').toLowerCase()
+    );
+
+    const usersToNotify = new Set<string>();
+
+    if (task?.assignedToId) usersToNotify.add(task.assignedToId);
+    if (task?.createdById) usersToNotify.add(task.createdById);
+
+    let mentionedUserIds: string[] = [];
+
+    if (mentionedNames.includes('everyone')) {
+      mentionedUserIds = Array.from(usersToNotify);
+    } else if (mentionedNames.length > 0) {
+      const users = await this.prisma.user.findMany({
+        where: {
+          OR: mentionedNames.map(name => ({
+            firstName: {
+              contains: name,
+              mode: 'insensitive',
+            },
+          })),
+        },
+      });
+
+      mentionedUserIds = users.map(u => u.id);
+    }
+
+    // =========================
+    // 🔥 CREATE NOTIFICATIONS
+    // =========================
+
+    for (const uid of usersToNotify) {
+      if (uid === userId) continue;
+
+      const isMentioned = mentionedUserIds.includes(uid);
+
+      await this.notificationService.createNotification(
+        uid,
+        isMentioned ? 'MENTION' : 'CHAT',
+        isMentioned
+          ? `${comment.user.firstName} mentioned you`
+          : `${comment.user.firstName} sent a message`,
+        taskId,
+      );
+    }
 
     return comment;
+
   } catch (error) {
     console.error("ADD COMMENT ERROR:", error);
     throw error;

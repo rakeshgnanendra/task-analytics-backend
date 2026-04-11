@@ -4,9 +4,10 @@ import { TaskController } from './task.controller'
 
 import { PrismaModule } from '../prisma/prisma.module';
 import { LogsModule } from '../logs/logs.module';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
-  imports:[PrismaModule , LogsModule ],
+  imports:[PrismaModule , LogsModule,NotificationModule ],
   controllers: [TaskController],
   providers: [TaskService],
   
