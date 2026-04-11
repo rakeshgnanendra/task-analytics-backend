@@ -1342,21 +1342,74 @@ private async generateTicketId(
   // 7️⃣ Final Ticket ID
   return `${prefix}-${code}-${date}-${sequence}`;
 }
+
 async getTaskParticipants(taskId: string) {
-  const task = await this.prisma.task.findUnique({
-    where: { id: taskId },
-    include: {
-      assignedTo: true,
-      createdBy: true,
-    },
-  });
+  try {
+    const task: any = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        assignedTo: true,
+        createdBy: true,
+        project: {
+          include: {
+            members: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
+      },
+    });
 
-  if (!task) throw new Error("Task not found");
+    if (!task) throw new Error("Task not found");
 
-  return [
-    task.assignedTo,
-    task.createdBy,
-  ].filter(Boolean);
+    const users: any[] = [];
+
+    if (task.assignedTo) users.push(task.assignedTo);
+    if (task.createdBy) users.push(task.createdBy);
+
+    if (task.project?.members?.length) {
+      task.project.members.forEach((m) => {
+        if (m.user) users.push(m.user);
+      });
+    }
+
+    // 🔥 SAFE VERSION
+    const departmentId = task.departmentId;
+
+    if (departmentId) {
+      const dhUsers = await this.prisma.user.findMany({
+        where: {
+          departmentId,
+          role: "DELIVERY_HEAD",
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+        },
+      });
+
+      users.push(...dhUsers);
+    }
+
+    const uniqueUsers = Array.from(
+      new Map(users.map((u) => [u.id, u])).values()
+    );
+
+    return uniqueUsers.map((u) => ({
+      id: u.id,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      role: u.role,
+    }));
+
+  } catch (error) {
+    console.error("GET PARTICIPANTS ERROR:", error);
+    throw error;
+  }
 }
 async getTaskById(id: string) {
   const task = await this.prisma.task.findUnique({
