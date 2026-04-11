@@ -1145,11 +1145,18 @@ async addComment(taskId: string, message: string, userId: string) {
   try {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
+      include: {
+        project: {
+          include: {
+            members: {
+              include: { user: true },
+            },
+          },
+        },
+      },
     });
 
-    if (!task) {
-      throw new Error("Task not found");
-    }
+    if (!task) throw new Error("Task not found");
 
     if (
       task.status === "CONFIRMED" ||
@@ -1158,6 +1165,7 @@ async addComment(taskId: string, message: string, userId: string) {
       throw new Error("Chat is disabled for this task");
     }
 
+    // ✅ CREATE COMMENT
     const comment = await this.prisma.taskComment.create({
       data: {
         message,
@@ -1171,18 +1179,45 @@ async addComment(taskId: string, message: string, userId: string) {
 
     const senderName = comment.user?.firstName || "Someone";
 
-    // 🔥 MENTIONS
+    // =========================
+    // 🔥 COLLECT ALL TASK USERS
+    // =========================
+
+    const baseUsers = new Set<string>();
+
+    // Assigned + Creator
+    if (task.assignedToId) baseUsers.add(task.assignedToId);
+    if (task.createdById) baseUsers.add(task.createdById);
+
+    // Project members (PM + TM)
+    if (task.project?.members?.length) {
+      task.project.members.forEach((m) => {
+        if (m.userId) baseUsers.add(m.userId);
+      });
+    }
+
+    // Department DH
+    if (task.departmentId) {
+      const dhUsers = await this.prisma.user.findMany({
+        where: {
+          departmentId: task.departmentId,
+          role: "DELIVERY_HEAD",
+        },
+        select: { id: true },
+      });
+
+      dhUsers.forEach((u) => baseUsers.add(u.id));
+    }
+
+    // =========================
+    // 🔥 MENTION EXTRACTION
+    // =========================
+
     const mentionMatches = message.match(/@(\w+)/g) || [];
 
     const mentionedNames = mentionMatches.map((m) =>
       m.replace("@", "").toLowerCase()
     );
-
-    // 🔥 TASK USERS
-    const baseUsers = new Set<string>();
-
-    if (task.assignedToId) baseUsers.add(task.assignedToId);
-    if (task.createdById) baseUsers.add(task.createdById);
 
     let mentionedUserIds: string[] = [];
 
@@ -1198,15 +1233,19 @@ async addComment(taskId: string, message: string, userId: string) {
             },
           })),
         },
+        select: { id: true },
       });
 
-      // ✅ ONLY TASK USERS
+      // ✅ restrict only to task participants
       mentionedUserIds = users
         .map((u) => u.id)
         .filter((id) => baseUsers.has(id));
     }
 
+    // =========================
     // 🔥 FINAL USERS
+    // =========================
+
     const finalUsers = Array.from(
       new Set([...baseUsers, ...mentionedUserIds])
     );
@@ -1219,7 +1258,10 @@ async addComment(taskId: string, message: string, userId: string) {
       return comment;
     }
 
+    // =========================
     // 🔥 NOTIFICATIONS
+    // =========================
+
     for (const uid of filteredUsers) {
       const isMentioned = mentionedUserIds.includes(uid);
 
@@ -1238,6 +1280,7 @@ async addComment(taskId: string, message: string, userId: string) {
     console.log("SENDER:", userId);
 
     return comment;
+
   } catch (error) {
     console.error("ADD COMMENT ERROR:", error);
     throw error;
