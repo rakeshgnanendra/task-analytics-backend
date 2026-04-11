@@ -1151,7 +1151,7 @@ async addComment(taskId: string, message: string, userId: string) {
       throw new Error("Task not found");
     }
 
-    // ✅ BLOCK FIRST
+    // 🚫 BLOCK CLOSED TASKS
     if (
       task.status === "CONFIRMED" ||
       task.status === "REJECTED"
@@ -1159,7 +1159,7 @@ async addComment(taskId: string, message: string, userId: string) {
       throw new Error("Chat is disabled for this task");
     }
 
-    // ✅ SAVE COMMENT FIRST
+    // ✅ CREATE COMMENT
     const comment = await this.prisma.taskComment.create({
       data: {
         message,
@@ -1172,60 +1172,77 @@ async addComment(taskId: string, message: string, userId: string) {
     });
 
     // =========================
-    // 🔥 MENTION LOGIC
+    // 🔥 EXTRACT MENTIONS
     // =========================
 
     const mentionMatches = message.match(/@(\w+)/g) || [];
 
-    const mentionedNames = mentionMatches.map(m =>
-      m.replace('@', '').toLowerCase()
+    const mentionedNames = mentionMatches.map((m) =>
+      m.replace("@", "").toLowerCase()
     );
 
-    const usersToNotify = new Set<string>();
+    // =========================
+    // 🔥 BASE USERS (TASK MEMBERS)
+    // =========================
 
-    if (task?.assignedToId) usersToNotify.add(task.assignedToId);
-    if (task?.createdById) usersToNotify.add(task.createdById);
+    const baseUsers = new Set<string>();
+
+    if (task.assignedToId) baseUsers.add(task.assignedToId);
+    if (task.createdById) baseUsers.add(task.createdById);
+
+    // =========================
+    // 🔥 FIND MENTIONED USERS
+    // =========================
 
     let mentionedUserIds: string[] = [];
 
-    if (mentionedNames.includes('everyone')) {
-      mentionedUserIds = Array.from(usersToNotify);
+    if (mentionedNames.includes("everyone")) {
+      mentionedUserIds = Array.from(baseUsers);
     } else if (mentionedNames.length > 0) {
       const users = await this.prisma.user.findMany({
         where: {
-          OR: mentionedNames.map(name => ({
+          OR: mentionedNames.map((name) => ({
             firstName: {
               contains: name,
-              mode: 'insensitive',
+              mode: "insensitive",
             },
           })),
         },
       });
 
-      mentionedUserIds = users.map(u => u.id);
+      mentionedUserIds = users.map((u) => u.id);
     }
+
+    // =========================
+    // 🔥 FINAL USERS (NO DUPLICATES)
+    // =========================
+
+    const finalUsers = new Set<string>([
+      ...baseUsers,
+      ...mentionedUserIds,
+    ]);
 
     // =========================
     // 🔥 CREATE NOTIFICATIONS
     // =========================
 
-    for (const uid of usersToNotify) {
+    for (const uid of finalUsers) {
+      // ❌ NEVER notify sender
       if (uid === userId) continue;
 
       const isMentioned = mentionedUserIds.includes(uid);
 
       await this.notificationService.createNotification(
         uid,
-        isMentioned ? 'MENTION' : 'CHAT',
+        isMentioned ? "MENTION" : "CHAT",
         isMentioned
           ? `${comment.user.firstName} mentioned you`
           : `${comment.user.firstName} sent a message`,
-        taskId,
+        taskId
       );
     }
 
     return comment;
-
   } catch (error) {
     console.error("ADD COMMENT ERROR:", error);
     throw error;
