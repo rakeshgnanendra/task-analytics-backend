@@ -208,7 +208,9 @@ if (task.departmentId) {
   deptUsers.forEach((u) => usersToNotify.add(u.id));
 }
 // 🔥 REMOVE CREATOR
-usersToNotify.delete(task.createdById);
+if (task.createdById !== task.assignedToId) {
+  usersToNotify.delete(task.createdById);
+}
 
 // 🔥 SEND NOTIFICATIONS
 for (const uid of usersToNotify) {
