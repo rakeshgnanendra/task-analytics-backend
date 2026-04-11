@@ -5,14 +5,18 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class NotificationService {
   constructor(private prisma: PrismaService) {}
 
-async createNotification(
-  userId: string,
-  type: string,
-  message: string,
-  taskId?: string,
-  referenceId?: string
-) {
-  console.log("REF ID:", referenceId); // 🔥 ADD THIS
+async createNotification(userId, type, message, taskId, referenceId) {
+  const exists = await this.prisma.notification.findFirst({
+    where: {
+      userId,
+      referenceId,
+    },
+  });
+
+  if (exists) {
+    console.log("Duplicate prevented");
+    return;
+  }
 
   return this.prisma.notification.create({
     data: {
@@ -20,7 +24,7 @@ async createNotification(
       type,
       message,
       taskId,
-      referenceId, // must NOT be null
+      referenceId,
     },
   });
 }
