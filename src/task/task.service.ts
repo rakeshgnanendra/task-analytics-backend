@@ -1238,7 +1238,8 @@ async addComment(taskId: string, message: string, userId: string) {
         isMentioned
           ? `${comment.user.firstName} mentioned you`
           : `${comment.user.firstName} sent a message`,
-        taskId
+        taskId,
+        comment.id
       );
     }
 

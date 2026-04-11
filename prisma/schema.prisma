@@ -156,6 +156,7 @@ model Notification {
   type      String   // CHAT | MENTION | ASSIGNED | STATUS
   message   String
   taskId    String?
+  referenceId String?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 

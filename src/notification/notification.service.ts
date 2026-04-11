@@ -5,29 +5,27 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class NotificationService {
   constructor(private prisma: PrismaService) {}
 
-  async createNotification(userId, type, message, taskId) {
-  // prevent duplicate within 2 seconds
-  const recent = await this.prisma.notification.findFirst({
-    where: {
-      userId,
-      taskId,
-      type,
-      createdAt: {
-        gte: new Date(Date.now() - 2000),
+async createNotification(
+  userId: string,
+  type: string,
+  message: string,
+  taskId?: string,
+  referenceId?: string // ✅ ADD THIS
+) {
+  try {
+    return await this.prisma.notification.create({
+      data: {
+        userId,
+        type,
+        message,
+        taskId,
+        referenceId, // ✅ ADD THIS
       },
-    },
-  })
-
-  if (recent) return
-
-  return this.prisma.notification.create({
-    data: {
-      userId,
-      type,
-      message,
-      taskId,
-    },
-  })
+    });
+  } catch (err) {
+    if (err.code === 'P2002') return;
+    throw err;
+  }
 }
 
   async getUserNotifications(userId: string) {
