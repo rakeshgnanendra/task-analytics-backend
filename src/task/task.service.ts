@@ -18,12 +18,13 @@ import { Response } from 'express'
 import { LogsService } from 'src/logs/logs.service'
 import { PrismaService } from 'src/prisma/prisma.service'
 import { NotificationService } from 'src/notification/notification.service'
+import { SocketGateway } from 'src/socket/socket.gateway'
 @Injectable()
 export class TaskService {
   [x: string]: any
  
    
-  constructor(private prisma: PrismaService, private logService:LogsService,  private notificationService: NotificationService, ) {}
+  constructor(private prisma: PrismaService, private logService:LogsService,  private notificationService: NotificationService,  private socketGateway: SocketGateway ) {}
 
   // =============================
   // CREATE TASK
@@ -1267,18 +1268,35 @@ if (task.project?.members?.length) {
     // =========================
 
     for (const uid of filteredUsers) {
-      const isMentioned = mentionedUserIds.includes(uid);
+  const isMentioned = mentionedUserIds.includes(uid);
 
-      await this.notificationService.createNotification(
-        uid,
-        isMentioned ? "MENTION" : "CHAT",
-        isMentioned
-          ? `${senderName} mentioned you`
-          : `${senderName} sent a message`,
-        taskId,
-        comment.id
-      );
-    }
+  const notifPayload = {
+    type: isMentioned ? 'MENTION' : 'CHAT',
+    message: isMentioned
+      ? `${senderName} mentioned you`
+      : `${senderName} sent a message`,
+    taskId,
+  };
+
+  // ✅ 1. SAVE TO DB
+  await this.notificationService.createNotification(
+    uid,
+    notifPayload.type,
+    notifPayload.message,
+    taskId,
+    comment.id
+  );
+
+  // ✅ 2. REAL-TIME EMIT
+  this.socketGateway.sendNotification(uid, notifPayload);
+
+  // ✅ 3. REAL-TIME CHAT (OPTIONAL)
+  this.socketGateway.sendMessage(uid, {
+    taskId,
+    message: comment.message,
+    user: comment.user,
+  });
+}
 
     console.log("FINAL USERS:", filteredUsers);
     console.log("SENDER:", userId);
