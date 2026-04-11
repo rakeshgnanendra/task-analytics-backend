@@ -17,12 +17,13 @@ import {
 import { Response } from 'express'
 import { LogsService } from 'src/logs/logs.service'
 import { PrismaService } from 'src/prisma/prisma.service'
+import { NotificationService } from 'src/notification/notification.service'
 @Injectable()
 export class TaskService {
   [x: string]: any
  
    
-  constructor(private prisma: PrismaService, private logService:LogsService) {}
+  constructor(private prisma: PrismaService, private logService:LogsService,  private notificationService: NotificationService, ) {}
 
   // =============================
   // CREATE TASK
