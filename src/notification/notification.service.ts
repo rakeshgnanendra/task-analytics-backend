@@ -31,7 +31,7 @@ async createNotification(userId, type, message, taskId, referenceId) {
 
   async getUserNotifications(userId: string) {
     return this.prisma.notification.findMany({
-      where: { userId },
+      where: { userId: userId },
       orderBy: { createdAt: 'desc' },
       take: 20,
     })
