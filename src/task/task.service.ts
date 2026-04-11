@@ -1352,6 +1352,7 @@ async getTaskParticipants(taskId: string) {
         createdBy: true,
         project: {
           include: {
+            deliveryHead: true, // ✅ IMPORTANT
             members: {
               include: {
                 user: true,
@@ -1366,34 +1367,27 @@ async getTaskParticipants(taskId: string) {
 
     const users: any[] = [];
 
+    // ✅ Assigned
     if (task.assignedTo) users.push(task.assignedTo);
+
+    // ✅ Creator
     if (task.createdBy) users.push(task.createdBy);
 
+    // ✅ Project Members (PM + TM)
     if (task.project?.members?.length) {
       task.project.members.forEach((m) => {
         if (m.user) users.push(m.user);
       });
     }
 
-    // 🔥 SAFE VERSION
-    const departmentId = task.departmentId;
-
-    if (departmentId) {
-      const dhUsers = await this.prisma.user.findMany({
-        where: {
-          departmentId,
-          role: "DELIVERY_HEAD",
-        },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-        },
-      });
-
-      users.push(...dhUsers);
+    // ✅ DELIVERY HEAD (DIRECT)
+    if (task.project?.deliveryHead) {
+      users.push(task.project.deliveryHead);
     }
+
+    // =========================
+    // 🔥 REMOVE DUPLICATES
+    // =========================
 
     const uniqueUsers = Array.from(
       new Map(users.map((u) => [u.id, u])).values()
