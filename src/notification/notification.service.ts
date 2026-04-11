@@ -10,22 +10,19 @@ async createNotification(
   type: string,
   message: string,
   taskId?: string,
-  referenceId?: string // ✅ ADD THIS
+  referenceId?: string
 ) {
-  try {
-    return await this.prisma.notification.create({
-      data: {
-        userId,
-        type,
-        message,
-        taskId,
-        referenceId, // ✅ ADD THIS
-      },
-    });
-  } catch (err) {
-    if (err.code === 'P2002') return;
-    throw err;
-  }
+  console.log("REF ID:", referenceId); // 🔥 ADD THIS
+
+  return this.prisma.notification.create({
+    data: {
+      userId,
+      type,
+      message,
+      taskId,
+      referenceId, // must NOT be null
+    },
+  });
 }
 
   async getUserNotifications(userId: string) {
