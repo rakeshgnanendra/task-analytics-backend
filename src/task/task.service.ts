@@ -1183,18 +1183,22 @@ async addComment(taskId: string, message: string, userId: string) {
     // 🔥 COLLECT ALL TASK USERS
     // =========================
 
-    const baseUsers = new Set<string>();
+  const baseUsers = new Set<string>();
 
-    // Assigned + Creator
-    if (task.assignedToId) baseUsers.add(task.assignedToId);
-    if (task.createdById) baseUsers.add(task.createdById);
+if (task.assignedToId) baseUsers.add(task.assignedToId);
+if (task.createdById) baseUsers.add(task.createdById);
 
-    // Project members (PM + TM)
-    if (task.project?.members?.length) {
-      task.project.members.forEach((m) => {
-        if (m.userId) baseUsers.add(m.userId);
-      });
-    }
+// ✅ ADD THIS
+if (task.project?.deliveryHeadId) {
+  baseUsers.add(task.project.deliveryHeadId);
+}
+
+// ✅ ADD PROJECT MEMBERS
+if (task.project?.members?.length) {
+  task.project.members.forEach((m) => {
+    if (m.userId) baseUsers.add(m.userId);
+  });
+}
 
     // Department DH
     if (task.departmentId) {
