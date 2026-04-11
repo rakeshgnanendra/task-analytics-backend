@@ -1303,4 +1303,24 @@ async getTaskParticipants(taskId: string) {
     task.createdBy,
   ].filter(Boolean);
 }
+async getTaskById(id: string) {
+  const task = await this.prisma.task.findUnique({
+    where: { id },
+    include: {
+      assignedTo: true,
+      createdBy: true,
+      project: {
+        include: {
+          members: true,
+        },
+      },
+    },
+  });
+
+  if (!task) {
+    throw new Error("Task not found");
+  }
+
+  return task;
+}
 }

@@ -277,4 +277,9 @@ getComments(@Param('taskId') taskId: string, @Req() req) {
 getParticipants(@Param('taskId') taskId: string) {
   return this.taskService.getTaskParticipants(taskId);
 }
+@UseGuards(JwtAuthGuard)
+@Get(':id')
+getTaskById(@Param('id') id: string) {
+  return this.taskService.getTaskById(id);
+}
 }
