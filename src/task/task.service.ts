@@ -108,6 +108,7 @@ async createTask(
   // =========================
   // 🟢 DEPARTMENT FLOW
   // =========================
+  
   if (departmentId) {
 
     const department = await this.prisma.department.findUnique({
@@ -171,6 +172,61 @@ if (departmentId) {
   const task = await this.prisma.task.create({
     data: taskData,
   })
+  // 🔥 COLLECT USERS
+const usersToNotify = new Set<string>();
+
+if (task.assignedToId) usersToNotify.add(task.assignedToId);
+if (task.createdById) usersToNotify.add(task.createdById);
+
+// ✅ PROJECT MEMBERS
+if (task.projectId) {
+  const project = await this.prisma.project.findUnique({
+    where: { id: task.projectId },
+    include: {
+      members: true,
+    },
+  });
+
+  project?.members.forEach((m) => {
+    if (m.userId) usersToNotify.add(m.userId);
+  });
+
+  // ✅ DELIVERY HEAD
+  if (project?.deliveryHeadId) {
+    usersToNotify.add(project.deliveryHeadId);
+  }
+}
+// ✅ DEPARTMENT FLOW (MISSING)
+if (task.departmentId) {
+  const deptUsers = await this.prisma.user.findMany({
+    where: {
+      departmentId: task.departmentId,
+    },
+    select: { id: true },
+  });
+
+  deptUsers.forEach((u) => usersToNotify.add(u.id));
+}
+// 🔥 REMOVE CREATOR
+usersToNotify.delete(task.createdById);
+
+// 🔥 SEND NOTIFICATIONS
+for (const uid of usersToNotify) {
+ await this.notificationService.createNotification(
+  uid,
+  "TASK_CREATED",
+  `New task assigned: ${task.title}`,
+  task.id,
+  null // ✅ ADD THIS
+);
+
+  // 🔥 REAL-TIME
+  this.socketGateway.sendNotification(uid, {
+    type: "TASK_CREATED",
+    message: `New task assigned: ${task.title}`,
+    taskId: task.id,
+  });
+}
 
   // =========================
   // 📎 FILE UPLOAD
@@ -554,10 +610,69 @@ if (task.projectId !== null && task.projectId !== undefined) {
   // ===============================
   // 7️⃣ UPDATE TASK
   // ===============================
-  const updatedTask = await this.prisma.task.update({
-    where: { id: taskId },
-    data: updateData,
-  })
+ const updatedTask = await this.prisma.task.update({
+  where: { id: taskId },
+  data: updateData,
+});
+
+// =========================
+// 🔥 NOTIFICATION LOGIC
+// =========================
+
+const usersToNotify = new Set<string>();
+
+if (updatedTask.assignedToId) usersToNotify.add(updatedTask.assignedToId);
+if (updatedTask.createdById) usersToNotify.add(updatedTask.createdById);
+
+// PROJECT
+if (updatedTask.projectId) {
+  const project = await this.prisma.project.findUnique({
+    where: { id: updatedTask.projectId },
+    include: { members: true },
+  });
+
+  project?.members.forEach((m) => {
+    if (m.userId) usersToNotify.add(m.userId);
+  });
+
+  if (project?.deliveryHeadId) {
+    usersToNotify.add(project.deliveryHeadId);
+  }
+}
+
+// DEPARTMENT
+if (updatedTask.departmentId) {
+  const deptUsers = await this.prisma.user.findMany({
+    where: {
+      departmentId: updatedTask.departmentId,
+    },
+    select: { id: true },
+  });
+
+  deptUsers.forEach((u) => usersToNotify.add(u.id));
+}
+
+// ❌ REMOVE CURRENT USER
+usersToNotify.delete(userId);
+
+// 🔥 SEND
+for (const uid of usersToNotify) {
+  await this.notificationService.createNotification(
+    uid,
+    "STATUS",
+    `Task "${updatedTask.title}" updated`,
+    updatedTask.id,
+    null
+  );
+
+  this.socketGateway.sendNotification(uid, {
+    type: "STATUS",
+    message: `Task "${updatedTask.title}" updated`,
+    taskId: updatedTask.id,
+  });
+}
+
+
 
   // ===============================
   // 8️⃣ LOGGING
