@@ -1287,4 +1287,20 @@ private async generateTicketId(
   // 7️⃣ Final Ticket ID
   return `${prefix}-${code}-${date}-${sequence}`;
 }
+async getTaskParticipants(taskId: string) {
+  const task = await this.prisma.task.findUnique({
+    where: { id: taskId },
+    include: {
+      assignedTo: true,
+      createdBy: true,
+    },
+  });
+
+  if (!task) throw new Error("Task not found");
+
+  return [
+    task.assignedTo,
+    task.createdBy,
+  ].filter(Boolean);
+}
 }
