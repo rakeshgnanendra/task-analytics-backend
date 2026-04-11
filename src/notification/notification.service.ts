@@ -6,18 +6,6 @@ export class NotificationService {
   constructor(private prisma: PrismaService) {}
 
 async createNotification(userId, type, message, taskId, referenceId) {
-  const exists = await this.prisma.notification.findFirst({
-    where: {
-      userId,
-      referenceId,
-    },
-  });
-
-  if (exists) {
-    console.log("Duplicate prevented");
-    return;
-  }
-
   return this.prisma.notification.create({
     data: {
       userId,

@@ -1298,25 +1298,25 @@ async addComment(taskId: string, message: string, userId: string) {
     const senderName = comment.user?.firstName || "Someone";
 
     // =========================
-    // 🔥 COLLECT ALL TASK USERS
+    // 🔥 COLLECT USERS
     // =========================
 
-  const baseUsers = new Set<string>();
+    const baseUsers = new Set<string>();
 
-if (task.assignedToId) baseUsers.add(task.assignedToId);
-if (task.createdById) baseUsers.add(task.createdById);
+    if (task.assignedToId) baseUsers.add(task.assignedToId);
+    if (task.createdById) baseUsers.add(task.createdById);
 
-// ✅ ADD THIS
-if (task.project?.deliveryHeadId) {
-  baseUsers.add(task.project.deliveryHeadId);
-}
+    // Project DH
+    if (task.project?.deliveryHeadId) {
+      baseUsers.add(task.project.deliveryHeadId);
+    }
 
-// ✅ ADD PROJECT MEMBERS
-if (task.project?.members?.length) {
-  task.project.members.forEach((m) => {
-    if (m.userId) baseUsers.add(m.userId);
-  });
-}
+    // Project members
+    if (task.project?.members?.length) {
+      task.project.members.forEach((m) => {
+        if (m.userId) baseUsers.add(m.userId);
+      });
+    }
 
     // Department DH
     if (task.departmentId) {
@@ -1332,7 +1332,7 @@ if (task.project?.members?.length) {
     }
 
     // =========================
-    // 🔥 MENTION EXTRACTION
+    // 🔥 MENTIONS
     // =========================
 
     const mentionMatches = message.match(/@(\w+)/g) || [];
@@ -1358,7 +1358,6 @@ if (task.project?.members?.length) {
         select: { id: true },
       });
 
-      // ✅ restrict only to task participants
       mentionedUserIds = users
         .map((u) => u.id)
         .filter((id) => baseUsers.has(id));
@@ -1376,44 +1375,34 @@ if (task.project?.members?.length) {
       (uid) => uid && String(uid) !== String(userId)
     );
 
-    if (filteredUsers.length === 0) {
-      return comment;
-    }
-
     // =========================
-    // 🔥 NOTIFICATIONS
+    // 🔥 NOTIFICATIONS + SOCKET
     // =========================
 
     for (const uid of filteredUsers) {
-  const isMentioned = mentionedUserIds.includes(uid);
+      const isMentioned = mentionedUserIds.includes(uid);
 
-  const notifPayload = {
-    type: isMentioned ? 'MENTION' : 'CHAT',
-    message: isMentioned
-      ? `${senderName} mentioned you`
-      : `${senderName} sent a message`,
-    taskId,
-  };
+      // ✅ SAVE IN DB
+      const notif = await this.notificationService.createNotification(
+        uid,
+        isMentioned ? "MENTION" : "CHAT",
+        isMentioned
+          ? `${senderName} mentioned you`
+          : `${senderName} sent a message`,
+        taskId,
+        comment.id
+      );
 
-  // ✅ 1. SAVE TO DB
-  await this.notificationService.createNotification(
-    uid,
-    notifPayload.type,
-    notifPayload.message,
-    taskId,
-    comment.id
-  );
+      // ✅ REAL-TIME NOTIFICATION
+      this.socketGateway.sendNotification(uid, notif);
 
-  // ✅ 2. REAL-TIME EMIT
-  this.socketGateway.sendNotification(uid, notifPayload);
-
-  // ✅ 3. REAL-TIME CHAT (OPTIONAL)
-  this.socketGateway.sendMessage(uid, {
-    taskId,
-    message: comment.message,
-    user: comment.user,
-  });
-}
+      // ✅ REAL-TIME CHAT
+      this.socketGateway.sendMessage(uid, {
+        taskId,
+        message: comment.message,
+        user: comment.user,
+      });
+    }
 
     console.log("FINAL USERS:", filteredUsers);
     console.log("SENDER:", userId);
