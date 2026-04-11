@@ -49,4 +49,10 @@ async createNotification(userId, type, message, taskId, referenceId) {
       where: { userId, isRead: false },
     })
   }
+  async markAsRead(id: string) {
+  return this.prisma.notification.update({
+    where: { id },
+    data: { isRead: true },
+  });
+}
 }
