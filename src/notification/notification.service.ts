@@ -14,7 +14,7 @@ async createNotification(userId, type, message, taskId, referenceId) {
       taskId,
       referenceId,
       isRead : false,
-      isDelete : false,
+      isDeleted : false,
     },
   });
 }
