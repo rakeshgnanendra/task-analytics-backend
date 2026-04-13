@@ -102,6 +102,9 @@ model TaskComment {
   createdAt DateTime @default(now())
 
   task      Task     @relation(fields: [taskId], references: [id])
+  deliveredTo String[] @default([])
+  seenBy      String[] @default([])
+
   user      User     @relation(fields: [userId], references: [id])
 }
 model TaskChatSeen {

@@ -1292,6 +1292,8 @@ async addComment(taskId: string, message: string, userId: string) {
         message,
         taskId,
         userId,
+        deliveredTo:[],
+        seenBy:[userId],
       },
       include: {
         user: true,
@@ -1397,14 +1399,21 @@ async addComment(taskId: string, message: string, userId: string) {
     // 🔥 CREATE NOTIFICATIONS + SOCKET
     // =========================
 const mentionedSet = new Set(mentionedUserIds);
-    for (const uid of filteredUsers) {
+  for (const uid of filteredUsers) {
 
-  // 🚫 skip duplicates
   if (existingUserSet.has(uid)) continue;
 
-  // 🔥 PRIORITY: MENTION USERS
-  if (mentionedSet.has(uid)) {
+  // 🔥 DELIVERED UPDATE
+  await this.prisma.taskComment.update({
+    where: { id: comment.id },
+    data: {
+      deliveredTo: {
+        push: uid,
+      },
+    },
+  });
 
+  if (mentionedSet.has(uid)) {
     await this.notificationService.createNotification(
       uid,
       "MENTION",
@@ -1420,10 +1429,9 @@ const mentionedSet = new Set(mentionedUserIds);
       referenceId: comment.id,
     });
 
-    continue; // 🚫 VERY IMPORTANT (skip CHAT)
+    continue;
   }
 
-  // 🔥 ONLY NON-MENTION USERS GET CHAT
   await this.notificationService.createNotification(
     uid,
     "CHAT",

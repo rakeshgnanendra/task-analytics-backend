@@ -82,16 +82,57 @@ export class NotificationService {
   }
 
   async markAsRead(notificationId: string, userId: string) {
-    return this.prisma.notification.updateMany({
-      where: {
-        id: notificationId,
-        userId,           // 🔐 IMPORTANT
-        isDeleted: false, // 🚫 prevents crash
-      },
-      data: {
-        isRead: true,
-        isDeleted: true,
-      },
-    });
+  // =========================
+  // 🔥 1. GET NOTIFICATION
+  // =========================
+
+  const notification = await this.prisma.notification.findFirst({
+    where: {
+      id: notificationId,
+      userId,
+      isDeleted: false,
+    },
+  });
+
+  // 🚫 If not found → avoid crash
+  if (!notification) {
+    return { message: "Notification already handled" };
   }
+
+  // =========================
+  // 🔥 2. MARK AS READ + DELETE
+  // =========================
+
+  await this.prisma.notification.update({
+    where: { id: notificationId },
+    data: {
+      isRead: true,
+      isDeleted: true,
+    },
+  });
+
+  // =========================
+  // 🔥 3. UPDATE SEEN STATUS (NEW)
+  // =========================
+
+  if (notification.referenceId) {
+    const comment = await this.prisma.taskComment.findUnique({
+      where: { id: notification.referenceId },
+    });
+
+    if (comment && !comment.seenBy.includes(userId)) {
+      await this.prisma.taskComment.update({
+        where: { id: notification.referenceId },
+        data: {
+          seenBy: {
+            push: userId,
+          },
+        },
+      });
+    }
+  }
+
+  return { success: true };
+}
+  
 }
