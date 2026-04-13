@@ -13,13 +13,15 @@ async createNotification(userId, type, message, taskId, referenceId) {
       message,
       taskId,
       referenceId,
+      isRead : false,
+      isDelete : false,
     },
   });
 }
 
   async getUserNotifications(userId: string) {
     return this.prisma.notification.findMany({
-      where: { userId: userId },
+      where: { userId: userId , isDeleted: false },
       orderBy: { createdAt: 'desc' },
       take: 20,
     })
@@ -28,19 +30,19 @@ async createNotification(userId, type, message, taskId, referenceId) {
   async markAllAsRead(userId: string) {
     return this.prisma.notification.updateMany({
       where: { userId, isRead: false },
-      data: { isRead: true },
+      data: { isRead: true, isDeleted:true },
     })
   }
 
   async getUnreadCount(userId: string) {
     return this.prisma.notification.count({
-      where: { userId, isRead: false },
+      where: { userId, isRead: false, isDeleted:false },
     })
   }
   async markAsRead(notificationId: string) {
   return this.prisma.notification.update({
     where: { id : notificationId},
-    data: { isRead: true },
+    data: { isRead: true , isDeleted:true },
   });
 }
 }
