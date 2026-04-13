@@ -282,4 +282,9 @@ getParticipants(@Param('taskId') taskId: string) {
 getTaskById(@Param('id') id: string) {
   return this.taskService.getTaskById(id);
 }
+@UseGuards(JwtAuthGuard)
+@Post("chat/:taskId/mark-read")
+markChatAsRead(@Param("taskId") taskId: string, @Req() req) {
+  return this.taskService.markChatAsRead(taskId, req.user.id);
+}
 }

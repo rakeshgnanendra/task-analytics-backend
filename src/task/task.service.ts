@@ -1608,4 +1608,21 @@ async getTaskById(id: string) {
 
   return task;
 }
+async markChatAsRead(taskId: string, userId: string) {
+  return this.prisma.taskComment.updateMany({
+    where: {
+      taskId,
+      NOT: {
+        seenBy: {
+          has: userId,
+        },
+      },
+    },
+    data: {
+      seenBy: {
+        push: userId,
+      },
+    },
+  });
+}
 }
