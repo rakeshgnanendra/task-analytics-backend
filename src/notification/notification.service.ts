@@ -21,15 +21,42 @@ export class NotificationService {
   }
 
   async getUserNotifications(userId: string) {
-    return this.prisma.notification.findMany({
-      where: {
-        userId,
-        isDeleted: false, // ✅ correct
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-    });
+  const notifications = await this.prisma.notification.findMany({
+    where: {
+      userId,
+      isDeleted: false,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  const groupedMap = new Map();
+
+  for (const n of notifications) {
+    const key = `${n.taskId}-${n.type}`;
+
+    if (!groupedMap.has(key)) {
+      groupedMap.set(key, {
+        ...n,
+        count: 1,
+      });
+    } else {
+      const existing = groupedMap.get(key);
+      existing.count += 1;
+
+      // always keep latest notification
+      if (new Date(n.createdAt) > new Date(existing.createdAt)) {
+        groupedMap.set(key, {
+          ...n,
+          count: existing.count,
+        });
+      }
+    }
   }
+
+  return Array.from(groupedMap.values()).slice(0, 20);
+}
 
   async markAllAsRead(userId: string) {
     return this.prisma.notification.updateMany({
