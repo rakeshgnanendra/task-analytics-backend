@@ -55,4 +55,23 @@ export class SocketGateway
       this.server.to(socketId).emit('chat', payload);
     }
   }
+  // 🔥 SEND TYPING
+sendTyping(userIds: string[], payload: any) {
+  userIds.forEach((uid) => {
+    const socketId = this.users.get(uid);
+    if (socketId) {
+      this.server.to(socketId).emit("typing", payload);
+    }
+  });
+}
+
+// 🔥 STOP TYPING
+sendStopTyping(userIds: string[], payload: any) {
+  userIds.forEach((uid) => {
+    const socketId = this.users.get(uid);
+    if (socketId) {
+      this.server.to(socketId).emit("stop_typing", payload);
+    }
+  });
+}
 }
