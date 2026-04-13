@@ -3,6 +3,7 @@ import {
   WebSocketServer,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  SubscribeMessage,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 
@@ -56,22 +57,16 @@ export class SocketGateway
     }
   }
   // 🔥 SEND TYPING
-sendTyping(userIds: string[], payload: any) {
-  userIds.forEach((uid) => {
-    const socketId = this.users.get(uid);
-    if (socketId) {
-      this.server.to(socketId).emit("typing", payload);
-    }
-  });
+@SubscribeMessage("typing")
+handleTyping(client: Socket, payload: any) {
+  const { taskId, userName } = payload;
+
+  // 🔥 SEND TO ALL CONNECTED USERS (TEMP FIX)
+  this.server.emit("typing", payload);
 }
 
-// 🔥 STOP TYPING
-sendStopTyping(userIds: string[], payload: any) {
-  userIds.forEach((uid) => {
-    const socketId = this.users.get(uid);
-    if (socketId) {
-      this.server.to(socketId).emit("stop_typing", payload);
-    }
-  });
+@SubscribeMessage("stop_typing")
+handleStopTyping(client: Socket, payload: any) {
+  this.server.emit("stop_typing", payload);
 }
 }
