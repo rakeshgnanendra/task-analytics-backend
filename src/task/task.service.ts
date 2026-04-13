@@ -1283,7 +1283,10 @@ async addComment(taskId: string, message: string, userId: string) {
       throw new Error("Chat is disabled for this task");
     }
 
+    // =========================
     // ✅ CREATE COMMENT
+    // =========================
+
     const comment = await this.prisma.taskComment.create({
       data: {
         message,
@@ -1364,58 +1367,64 @@ async addComment(taskId: string, message: string, userId: string) {
     }
 
     // =========================
-    // 🔥 FINAL USERS
+    // 🔥 FINAL USERS (REMOVE SENDER)
     // =========================
 
-    const finalUsers = Array.from(
-      new Set([...baseUsers, ...mentionedUserIds])
-    );
-
-    const filteredUsers = finalUsers.filter(
+    const filteredUsers = Array.from(baseUsers).filter(
       (uid) => uid && String(uid) !== String(userId)
     );
 
     // =========================
-    // 🔥 NOTIFICATIONS + SOCKET
+    // 🔥 PRELOAD EXISTING (PERFORMANCE FIX)
     // =========================
 
-   for (const uid of filteredUsers) {
-  const isMentioned = mentionedUserIds.includes(uid);
-const existing = await this.prisma.notification.findFirst({
-    where: {
-      userId: uid,
-      referenceId: comment.id, // same message
-      isDeleted: false,
-    },
-  });
+    const existingNotifications = await this.prisma.notification.findMany({
+      where: {
+        referenceId: comment.id,
+        userId: { in: filteredUsers },
+        isDeleted: false,
+      },
+      select: {
+        userId: true,
+      },
+    });
 
-  if (existing) continue; 
-  // 🔥 SKIP CHAT if already mentioned
-  if (isMentioned) {
-    await this.notificationService.createNotification(
-      uid,
-      "MENTION",
-      `${senderName} mentioned you`,
-      taskId,
-      comment.id
+    const existingUserSet = new Set(
+      existingNotifications.map((n) => n.userId)
     );
-  } else {
-    await this.notificationService.createNotification(
-      uid,
-      "CHAT",
-      `${senderName} sent a message`,
-      taskId,
-      comment.id
-    );
-  }
-  this.socketGateway.sendNotification(uid, {
-    type: isMentioned ? "MENTION" : "CHAT",
-    message: isMentioned
-      ? `${senderName} mentioned you`
-      : `${senderName} sent a message`,
-    taskId,
-  });
-}
+
+    // =========================
+    // 🔥 CREATE NOTIFICATIONS + SOCKET
+    // =========================
+
+    for (const uid of filteredUsers) {
+      // 🚫 skip duplicates
+      if (existingUserSet.has(uid)) continue;
+
+      const isMentioned = mentionedUserIds.includes(uid);
+
+      const type = isMentioned ? "MENTION" : "CHAT";
+      const msg = isMentioned
+        ? `${senderName} mentioned you`
+        : `${senderName} sent a message`;
+
+      // ✅ DB
+      await this.notificationService.createNotification(
+        uid,
+        type,
+        msg,
+        taskId,
+        comment.id
+      );
+
+      // ✅ SOCKET
+      this.socketGateway.sendNotification(uid, {
+        type,
+        message: msg,
+        taskId,
+        referenceId: comment.id,
+      });
+    }
 
     console.log("FINAL USERS:", filteredUsers);
     console.log("SENDER:", userId);
