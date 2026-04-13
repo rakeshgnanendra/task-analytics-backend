@@ -1396,36 +1396,49 @@ async addComment(taskId: string, message: string, userId: string) {
     // =========================
     // 🔥 CREATE NOTIFICATIONS + SOCKET
     // =========================
-
+const mentionedSet = new Set(mentionedUserIds);
     for (const uid of filteredUsers) {
-      // 🚫 skip duplicates
-      if (existingUserSet.has(uid)) continue;
 
-      const isMentioned = mentionedUserIds.includes(uid);
+  // 🚫 skip duplicates
+  if (existingUserSet.has(uid)) continue;
 
-      const type = isMentioned ? "MENTION" : "CHAT";
-      const msg = isMentioned
-        ? `${senderName} mentioned you`
-        : `${senderName} sent a message`;
+  // 🔥 PRIORITY: MENTION USERS
+  if (mentionedSet.has(uid)) {
 
-      // ✅ DB
-      await this.notificationService.createNotification(
-        uid,
-        type,
-        msg,
-        taskId,
-        comment.id
-      );
+    await this.notificationService.createNotification(
+      uid,
+      "MENTION",
+      `${senderName} mentioned you`,
+      taskId,
+      comment.id
+    );
 
-      // ✅ SOCKET
-      this.socketGateway.sendNotification(uid, {
-        type,
-        message: msg,
-        taskId,
-        referenceId: comment.id,
-      });
-    }
+    this.socketGateway.sendNotification(uid, {
+      type: "MENTION",
+      message: `${senderName} mentioned you`,
+      taskId,
+      referenceId: comment.id,
+    });
 
+    continue; // 🚫 VERY IMPORTANT (skip CHAT)
+  }
+
+  // 🔥 ONLY NON-MENTION USERS GET CHAT
+  await this.notificationService.createNotification(
+    uid,
+    "CHAT",
+    `${senderName} sent a message`,
+    taskId,
+    comment.id
+  );
+
+  this.socketGateway.sendNotification(uid, {
+    type: "CHAT",
+    message: `${senderName} sent a message`,
+    taskId,
+    referenceId: comment.id,
+  });
+}
     console.log("FINAL USERS:", filteredUsers);
     console.log("SENDER:", userId);
 
