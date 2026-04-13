@@ -1379,30 +1379,43 @@ async addComment(taskId: string, message: string, userId: string) {
     // 🔥 NOTIFICATIONS + SOCKET
     // =========================
 
-    for (const uid of filteredUsers) {
-      const isMentioned = mentionedUserIds.includes(uid);
+   for (const uid of filteredUsers) {
+  const isMentioned = mentionedUserIds.includes(uid);
+const existing = await this.prisma.notification.findFirst({
+    where: {
+      userId: uid,
+      referenceId: comment.id, // same message
+      isDeleted: false,
+    },
+  });
 
-      // ✅ SAVE IN DB
-      const notif = await this.notificationService.createNotification(
-        uid,
-        isMentioned ? "MENTION" : "CHAT",
-        isMentioned
-          ? `${senderName} mentioned you`
-          : `${senderName} sent a message`,
-        taskId,
-        comment.id
-      );
-
-      // ✅ REAL-TIME NOTIFICATION
-      this.socketGateway.sendNotification(uid, notif);
-
-      // ✅ REAL-TIME CHAT
-      this.socketGateway.sendMessage(uid, {
-        taskId,
-        message: comment.message,
-        user: comment.user,
-      });
-    }
+  if (existing) continue; 
+  // 🔥 SKIP CHAT if already mentioned
+  if (isMentioned) {
+    await this.notificationService.createNotification(
+      uid,
+      "MENTION",
+      `${senderName} mentioned you`,
+      taskId,
+      comment.id
+    );
+  } else {
+    await this.notificationService.createNotification(
+      uid,
+      "CHAT",
+      `${senderName} sent a message`,
+      taskId,
+      comment.id
+    );
+  }
+  this.socketGateway.sendNotification(uid, {
+    type: isMentioned ? "MENTION" : "CHAT",
+    message: isMentioned
+      ? `${senderName} mentioned you`
+      : `${senderName} sent a message`,
+    taskId,
+  });
+}
 
     console.log("FINAL USERS:", filteredUsers);
     console.log("SENDER:", userId);
