@@ -1404,14 +1404,26 @@ const mentionedSet = new Set(mentionedUserIds);
   if (existingUserSet.has(uid)) continue;
 
   // 🔥 DELIVERED UPDATE
-  await this.prisma.taskComment.update({
-    where: { id: comment.id },
-    data: {
-      deliveredTo: {
-        push: uid,
+const existingComment = await this.prisma.taskComment.findUnique({
+  where: { id: comment.id },
+});
+
+if (existingComment) {
+  const newDelivered = filteredUsers.filter(
+    (uid) => !existingComment.deliveredTo.includes(uid)
+  );
+
+  if (newDelivered.length > 0) {
+    await this.prisma.taskComment.update({
+      where: { id: comment.id },
+      data: {
+        deliveredTo: {
+          push: newDelivered,
+        },
       },
-    },
-  });
+    });
+  }
+}
 
   if (mentionedSet.has(uid)) {
     await this.notificationService.createNotification(
