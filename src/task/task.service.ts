@@ -176,28 +176,22 @@ if (departmentId) {
   // 🔥 COLLECT USERS
 const usersToNotify = new Set<string>();
 if (task.assignedToId) {
-  const assignedUser = await this.prisma.user.findUnique({
+  const user = await this.prisma.user.findUnique({
     where: { id: task.assignedToId },
   });
 
-  if (assignedUser?.email) {
+  if (user?.email) {
     await this.emailService.sendMail(
-      assignedUser.email,
+      user.email,
       "New Task Assigned",
-      `
-Hi ${assignedUser.firstName},
+      `Hi ${user.firstName},
 
 You have been assigned a new task.
 
 Title: ${task.title}
-Description: ${task.description || "N/A"}
 Priority: ${task.priority}
 
-Please login to view task.
-
-Thanks,
-Task Analytics
-`
+Please login to check details.`
     );
   }
 }
