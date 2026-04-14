@@ -15,10 +15,10 @@ import { ReportsModule } from './reports/reports.module';
 import { ChatModule } from './chat/chat.module';
 import { NotificationModule } from './notification/notification.module';
 import { SocketModule } from './socket/socket.module';
-
+import { EmailService } from './email/email.service';
 @Module({
   imports: [AuthModule, ProjectModule, TaskModule , DashboardModule, UsersModule, PrismaModule, LogsModule, DepartmentModule, ReportsModule, ChatModule, NotificationModule,SocketModule],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService,EmailService],
 })
 export class AppModule {}

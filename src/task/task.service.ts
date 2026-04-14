@@ -19,12 +19,13 @@ import { LogsService } from 'src/logs/logs.service'
 import { PrismaService } from 'src/prisma/prisma.service'
 import { NotificationService } from 'src/notification/notification.service'
 import { SocketGateway } from 'src/socket/socket.gateway'
+import { EmailService } from 'src/email/email.service'
 @Injectable()
 export class TaskService {
   [x: string]: any
  
    
-  constructor(private prisma: PrismaService, private logService:LogsService,  private notificationService: NotificationService,  private socketGateway: SocketGateway ) {}
+  constructor(private prisma: PrismaService, private logService:LogsService,  private notificationService: NotificationService,  private socketGateway: SocketGateway, private emailService: EmailService ) {}
 
   // =============================
   // CREATE TASK
@@ -174,7 +175,32 @@ if (departmentId) {
   })
   // 🔥 COLLECT USERS
 const usersToNotify = new Set<string>();
+if (task.assignedToId) {
+  const assignedUser = await this.prisma.user.findUnique({
+    where: { id: task.assignedToId },
+  });
 
+  if (assignedUser?.email) {
+    await this.emailService.sendMail(
+      assignedUser.email,
+      "New Task Assigned",
+      `
+Hi ${assignedUser.firstName},
+
+You have been assigned a new task.
+
+Title: ${task.title}
+Description: ${task.description || "N/A"}
+Priority: ${task.priority}
+
+Please login to view task.
+
+Thanks,
+Task Analytics
+`
+    );
+  }
+}
 if (task.assignedToId) usersToNotify.add(task.assignedToId);
 if (task.createdById) usersToNotify.add(task.createdById);
 
@@ -616,7 +642,31 @@ if (task.projectId !== null && task.projectId !== undefined) {
   where: { id: taskId },
   data: updateData,
 });
+if (updatedTask.assignedToId && newStatus !== task.status) {
+  const user = await this.prisma.user.findUnique({
+    where: { id: updatedTask.assignedToId },
+  });
 
+  if (user?.email) {
+    await this.emailService.sendMail(
+      user.email,
+      "Task Status Updated",
+      `
+Hi ${user.firstName},
+
+Your task status has been updated.
+
+Title: ${updatedTask.title}
+New Status: ${updatedTask.status}
+
+Please login to check details.
+
+Thanks,
+Task Analytics
+`
+    );
+  }
+}
 // =========================
 // 🔥 NOTIFICATION LOGIC
 // =========================

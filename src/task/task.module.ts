@@ -6,11 +6,12 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { LogsModule } from '../logs/logs.module';
 import { NotificationModule } from 'src/notification/notification.module';
 import { SocketModule } from 'src/socket/socket.module';
+import { EmailService } from 'src/email/email.service';
 
 @Module({
   imports:[PrismaModule , LogsModule,NotificationModule,SocketModule ],
   controllers: [TaskController],
-  providers: [TaskService],
+  providers: [TaskService,EmailService],
   
 })
 export class TaskModule {}
