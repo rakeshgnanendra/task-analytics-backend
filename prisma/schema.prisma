@@ -47,6 +47,7 @@ model User {
   departmentId         String
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
+  mustChangePassword Boolean @default(true)
   activityLogs         ActivityLog[]
   downloads            FileDownloadLog[]
   deliveryHeadProjects Project[]         @relation("DeliveryHeadProjects")

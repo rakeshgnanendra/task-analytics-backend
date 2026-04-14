@@ -1609,20 +1609,33 @@ async getTaskById(id: string) {
   return task;
 }
 async markChatAsRead(taskId: string, userId: string) {
-  return this.prisma.taskComment.updateMany({
-    where: {
-      taskId,
-      NOT: {
+  const comments = await this.prisma.taskComment.findMany({
+    where: { taskId },
+  });
+
+  for (const c of comments) {
+    // 🚫 skip sender message
+    if (c.userId === userId) continue;
+
+    // 🚫 skip if already seen
+    if (c.seenBy.includes(userId)) continue;
+
+    await this.prisma.taskComment.update({
+      where: { id: c.id },
+      data: {
         seenBy: {
-          has: userId,
+          push: userId,
         },
       },
-    },
-    data: {
-      seenBy: {
-        push: userId,
-      },
-    },
+    });
+  }
+
+  // 🔥 REAL-TIME UPDATE
+  this.socketGateway.server.emit("message_seen", {
+    taskId,
+    userId,
   });
+
+  return { success: true };
 }
 }

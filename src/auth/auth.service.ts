@@ -41,6 +41,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
     },
+    mustChangePassword: user.mustChangePassword,
     }
   }
   async changePassword(
@@ -69,7 +70,7 @@ export class AuthService {
 
   await this.prisma.user.update({
     where: { id: userId },
-    data: { password: hashedPassword },
+    data: { password: hashedPassword ,  mustChangePassword: false, },
   })
 
   return { message: 'Password updated successfully' }
