@@ -2,8 +2,9 @@ import { NestFactory } from '@nestjs/core'
 import { AppModule } from './app.module'
 import { join } from 'path'
 import { NestExpressApplication } from '@nestjs/platform-express'
-
+import dns from "dns"
 async function bootstrap() {
+  dns.setDefaultResultOrder("ipv4first");
   const app = await NestFactory.create<NestExpressApplication>(AppModule)
 
   app.useStaticAssets(
