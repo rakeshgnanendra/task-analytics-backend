@@ -174,29 +174,104 @@ if (departmentId) {
     data: taskData,
   })
   // 🔥 COLLECT USERS
+  
 const usersToNotify = new Set<string>();
 if (task.assignedToId) {
+  
   const user = await this.prisma.user.findUnique({
     where: { id: task.assignedToId },
   });
 
-  if (user) {
-    await this.emailService.sendMail(
-      user.email, // ✅ your verified email
-      "New Task Assigned",
-      `Hi ${user.firstName},
+ if (user?.email) {
+  const html = `
+<div style="background:#f4f6fb; padding:20px; font-family:Arial, sans-serif;">
 
-You have been assigned a new task.
+  <div style="max-width:650px; margin:auto; background:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,0.08);">
 
-Title: ${task.title}
-Priority: ${task.priority}
+    <!-- HEADER -->
+    <div style="background:linear-gradient(90deg,#4f46e5,#7c3aed); color:white; padding:20px;">
+      <h2 style="margin:0;">Task Analytics</h2>
+      <p style="margin:5px 0 0; font-size:13px; opacity:0.8;">
+        Task Notification
+      </p>
+    </div>
 
-Please login to check details.
+    <!-- BODY -->
+    <div style="padding:25px;">
 
-Thanks,
-Task Analytics`
-    );
-  }
+      <p style="font-size:16px;">
+        Hi <b>${user.firstName}</b>,
+      </p>
+
+      <p style="color:#555;">
+        You have been assigned a new task. Below are the details:
+      </p>
+
+      <!-- TASK DETAILS CARD -->
+      <div style="border:1px solid #eee; border-radius:8px; padding:15px; background:#fafbff;">
+
+        <table style="width:100%; font-size:14px; color:#333;">
+          <tr>
+            <td><b>Ticket ID</b></td>
+            <td>${task.ticketId}</td>
+          </tr>
+          <tr>
+            <td><b>Title</b></td>
+            <td>${task.title}</td>
+          </tr>
+          <tr>
+            <td><b>Description</b></td>
+            <td>${task.description || "-"}</td>
+          </tr>
+          <tr>
+            <td><b>Priority</b></td>
+            <td style="color:${
+              task.priority === "HIGH"
+                ? "#dc2626"
+                : task.priority === "MEDIUM"
+                ? "#f59e0b"
+                : "#16a34a"
+            };">
+              ${task.priority}
+            </td>
+          </tr>
+          <tr>
+            <td><b>Due Date</b></td>
+            <td>${task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "-"}</td>
+          </tr>
+          
+        </table>
+
+      </div>
+
+      <!-- BUTTON -->
+      <div style="text-align:center; margin:30px 0;">
+        <a href="https://taskanalyticsdp.netlify.app"
+           style="background:#4f46e5; color:white; padding:12px 22px; border-radius:6px; text-decoration:none; font-weight:bold;">
+           View Task
+        </a>
+      </div>
+
+      <p style="color:#777;">
+        Please login to your dashboard for more details.
+      </p>
+
+    </div>
+
+    <!-- FOOTER -->
+    <div style="background:#f1f5f9; padding:15px; text-align:center; font-size:12px; color:#888;">
+      © 2026 Task Analytics • Digital Personas
+    </div>
+
+  </div>
+</div>
+`;
+  this.emailService.sendMail(
+    user.email,
+    "New Task Assigned",
+    html
+  ).catch(err => console.error("Email failed:", err));
+}
 }
 if (task.assignedToId) usersToNotify.add(task.assignedToId);
 if (task.createdById) usersToNotify.add(task.createdById);

@@ -10,17 +10,19 @@ export class EmailService {
     })
   );
 
-  async sendMail(to: string, subject: string, text: string) {
-    try {
-      await this.transporter.sendMail({
-        from: process.env.EMAIL_FROM, // Must be a verified sender in Brevo
-        to: to, 
-        subject: subject,
-        text: text,
-      });
-      console.log("Email sent via API!");
-    } catch (error) {
-      console.error("API Email error:", error);
-    }
+  async sendMail(
+to: string, subject: string,  html: string) {
+  try {
+    await this.transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to,
+      subject,
+      html, // ✅ only send
+    });
+
+    console.log("Email sent via API!");
+  } catch (error) {
+    console.error("API Email error:", error);
   }
+}
 }
