@@ -189,12 +189,10 @@ if (task.assignedToId) {
   <div style="max-width:650px; margin:auto; background:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,0.08);">
 
     <!-- HEADER -->
-    <div style="background:linear-gradient(90deg,#4f46e5,#7c3aed); color:white; padding:20px;">
-      <h2 style="margin:0;">Task Analytics</h2>
-      <p style="margin:5px 0 0; font-size:13px; opacity:0.8;">
-        Task Notification
-      </p>
-    </div>
+   <div style="background:linear-gradient(90deg,#4f46e5,#7c3aed); color:white; padding:16px 20px; border-radius:10px 10px 0 0;">
+  <h2 style="margin:0;">Task Analytics</h2>
+  <p style="margin:0; font-size:12px; opacity:0.8;">Task Notification</p>
+</div>
 
     <!-- BODY -->
     <div style="padding:25px;">
@@ -203,53 +201,70 @@ if (task.assignedToId) {
         Hi <b>${user.firstName}</b>,
       </p>
 
-      <p style="color:#555;">
-        You have been assigned a new task. Below are the details:
-      </p>
+     <p style="color:#555;">
+  You’ve been assigned a new task in <b>Task Analytics</b>.
+</p>
 
       <!-- TASK DETAILS CARD -->
       <div style="border:1px solid #eee; border-radius:8px; padding:15px; background:#fafbff;">
 
-        <table style="width:100%; font-size:14px; color:#333;">
-          <tr>
-            <td><b>Ticket ID</b></td>
-            <td>${task.ticketId}</td>
-          </tr>
-          <tr>
-            <td><b>Title</b></td>
-            <td>${task.title}</td>
-          </tr>
-          <tr>
-            <td><b>Description</b></td>
-            <td>${task.description || "-"}</td>
-          </tr>
-          <tr>
-            <td><b>Priority</b></td>
-            <td style="color:${
-              task.priority === "HIGH"
-                ? "#dc2626"
-                : task.priority === "MEDIUM"
-                ? "#f59e0b"
-                : "#16a34a"
-            };">
-              ${task.priority}
-            </td>
-          </tr>
-          <tr>
-            <td><b>Due Date</b></td>
-            <td>${task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "-"}</td>
-          </tr>
-          
-        </table>
+        <table style="width:100%; font-size:14px; color:#333; border-collapse:collapse;">
+  <tr>
+    <td style="padding:6px 0; font-weight:bold; width:140px;">Ticket ID</td>
+    <td>${task.ticketId}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 0; font-weight:bold;">Title</td>
+    <td>${task.title}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 0; font-weight:bold;">Description</td>
+    <td>${task.description || "-"}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 0; font-weight:bold;">Priority</td>
+    <td>
+      <span style="
+        padding:4px 8px;
+        border-radius:6px;
+        font-size:12px;
+        font-weight:bold;
+        color:white;
+        background:${
+          task.priority === "HIGH"
+            ? "#dc2626"
+            : task.priority === "MEDIUM"
+            ? "#f59e0b"
+            : "#16a34a"
+        };
+      ">
+        ${task.priority}
+      </span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:6px 0; font-weight:bold;">Due Date</td>
+    <td>${task.dueDate}</td>
+  </tr>
+</table>
 
       </div>
 
       <!-- BUTTON -->
       <div style="text-align:center; margin:30px 0;">
-        <a href="https://taskanalyticsdp.netlify.app"
-           style="background:#4f46e5; color:white; padding:12px 22px; border-radius:6px; text-decoration:none; font-weight:bold;">
-           View Task
-        </a>
+       <a href="https://taskanalyticsdp.netlify.app/tasks/${task.id}"
+   style="
+     display:inline-block;
+     background:linear-gradient(90deg,#4f46e5,#7c3aed);
+     color:white;
+     padding:12px 24px;
+     border-radius:8px;
+     text-decoration:none;
+     font-weight:600;
+     box-shadow:0 4px 10px rgba(0,0,0,0.15);
+   ">
+   View Task
+</a>
       </div>
 
       <p style="color:#777;">
@@ -259,9 +274,10 @@ if (task.assignedToId) {
     </div>
 
     <!-- FOOTER -->
-    <div style="background:#f1f5f9; padding:15px; text-align:center; font-size:12px; color:#888;">
-      © 2026 Task Analytics • Digital Personas
-    </div>
+    <div style="background:#f1f5f9; padding:12px; text-align:center; font-size:12px; color:#888;">
+  © 2026 Task Analytics • Digital Personas <br/>
+  This is an automated notification. Please do not reply.
+</div>
 
   </div>
 </div>
