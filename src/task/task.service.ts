@@ -180,9 +180,9 @@ if (task.assignedToId) {
     where: { id: task.assignedToId },
   });
 
-  if (user?.email) {
+  if (user) {
     await this.emailService.sendMail(
-      user.email,
+      "rakeshgnanendra@gmail.com",
       "New Task Assigned",
       `Hi ${user.firstName},
 
