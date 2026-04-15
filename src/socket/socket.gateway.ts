@@ -12,6 +12,7 @@ import { Server, Socket } from 'socket.io';
     origin: [
     'http://localhost:5173',
     'https://taskanalyticsdp.netlify.app',
+    'https://task-analytics-backend.onrender.com/'
   ]
   },
 })
