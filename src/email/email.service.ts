@@ -1,18 +1,26 @@
-import { Injectable } from '@nestjs/common';
-import { Resend } from 'resend';
+import { Injectable } from "@nestjs/common";
+import * as nodemailer from "nodemailer";
 
 @Injectable()
 export class EmailService {
-  private resend = new Resend(process.env.RESEND_API_KEY);
+  private transporter = nodemailer.createTransport({
+    host: "smtp.office365.com",
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.EMAIL_USER, // company email
+      pass: process.env.EMAIL_PASS, // password or app password
+    },
+  });
 
   async sendMail(to: string, subject: string, text: string) {
     try {
-     await this.resend.emails.send({
-  from: "onboarding@resend.dev", // ✅ DO NOT CHANGE
-  to: ["rakeshgnanendra@gmail.com"], // ✅ ARRAY FORMAT
-  subject,
-  text,
-});
+      await this.transporter.sendMail({
+        from: process.env.EMAIL_USER, // ✅ must match SMTP user
+        to:["rakeshgnanendra@gmail.com"],
+        subject,
+        text,
+      });
 
       console.log("Email sent to:", to);
     } catch (error) {
