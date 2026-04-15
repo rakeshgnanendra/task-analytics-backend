@@ -182,7 +182,7 @@ if (task.assignedToId) {
 
   if (user) {
     await this.emailService.sendMail(
-      "rakeshgnanendra@gmail.com",
+      "rakeshgnanendra@gmail.com", // ✅ your verified email
       "New Task Assigned",
       `Hi ${user.firstName},
 
@@ -191,7 +191,10 @@ You have been assigned a new task.
 Title: ${task.title}
 Priority: ${task.priority}
 
-Please login to check details.`
+Please login to check details.
+
+Thanks,
+Task Analytics`
     );
   }
 }

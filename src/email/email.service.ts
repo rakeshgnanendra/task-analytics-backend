@@ -7,12 +7,12 @@ export class EmailService {
 
   async sendMail(to: string, subject: string, text: string) {
     try {
-      await this.resend.emails.send({
-       from: "Task Analytics <onboarding@resend.dev>", // default (works immediately)
-        to,
-        subject,
-        text,
-      });
+     await this.resend.emails.send({
+  from: "onboarding@resend.dev", // ✅ DO NOT CHANGE
+  to: ["rakeshgnanendra@gmail.com"], // ✅ ARRAY FORMAT
+  subject,
+  text,
+});
 
       console.log("Email sent to:", to);
     } catch (error) {
