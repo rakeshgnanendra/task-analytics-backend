@@ -9,7 +9,10 @@ import { Server, Socket } from 'socket.io';
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: [
+    'http://localhost:5173',
+    'https://taskanalyticsdp.netlify.app',
+  ]
   },
 })
 export class SocketGateway
@@ -21,10 +24,11 @@ export class SocketGateway
   private users = new Map<string, string>(); // userId → socketId
 
   handleConnection(client: Socket) {
-    const userId = client.handshake.query.userId as string;
+    const userId = client.handshake.auth.userId as string;
 
     if (userId) {
       this.users.set(userId, client.id);
+       client.join(userId);
       console.log('User connected:', userId);
     }
   }
@@ -59,14 +63,20 @@ export class SocketGateway
   // 🔥 SEND TYPING
 @SubscribeMessage("typing")
 handleTyping(client: Socket, payload: any) {
-  const { taskId, userName } = payload;
+  const { taskId } = payload;
 
-  // 🔥 SEND TO ALL CONNECTED USERS (TEMP FIX)
-  this.server.emit("typing", payload);
+  // ✅ emit only to task room
+  this.server.to(taskId).emit("typing", payload);
 }
 
 @SubscribeMessage("stop_typing")
 handleStopTyping(client: Socket, payload: any) {
-  this.server.emit("stop_typing", payload);
+  const { taskId } = payload;
+
+  this.server.to(taskId).emit("stop_typing", payload);
+}
+@SubscribeMessage("join_task")
+handleJoinTask(client: Socket, taskId: string) {
+  client.join(taskId);
 }
 }
