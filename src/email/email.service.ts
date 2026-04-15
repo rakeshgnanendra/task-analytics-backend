@@ -8,7 +8,7 @@ export class EmailService {
   async sendMail(to: string, subject: string, text: string) {
     try {
       await this.resend.emails.send({
-        from: 'Task Analytics <no-reply@digitalpersonas.com>', // default (works immediately)
+        from: 'from: "Task Analytics <onboarding@resend.dev>"', // default (works immediately)
         to,
         subject,
         text,
