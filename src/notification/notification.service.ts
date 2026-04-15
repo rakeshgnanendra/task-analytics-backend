@@ -82,6 +82,13 @@ export class NotificationService {
   }
 
   async markAsRead(notificationId: string, userId: string) {
+
+  // 🔥 SAFETY CHECK
+  if (!userId) {
+    console.log("UserId missing in markAsRead");
+    return { success: true };
+  }
+
   // =========================
   // 🔥 1. GET NOTIFICATION
   // =========================
@@ -94,7 +101,6 @@ export class NotificationService {
     },
   });
 
-  // 🚫 If not found → avoid crash
   if (!notification) {
     return { message: "Notification already handled" };
   }
@@ -112,7 +118,7 @@ export class NotificationService {
   });
 
   // =========================
-  // 🔥 3. UPDATE SEEN STATUS (NEW)
+  // 🔥 3. UPDATE SEEN STATUS
   // =========================
 
   if (notification.referenceId) {
@@ -120,12 +126,16 @@ export class NotificationService {
       where: { id: notification.referenceId },
     });
 
-    if (comment && !comment.seenBy.includes(userId)) {
+    if (
+      comment &&
+      userId &&
+      !comment.seenBy.includes(userId)
+    ) {
       await this.prisma.taskComment.update({
         where: { id: notification.referenceId },
         data: {
           seenBy: {
-            push: userId,
+            push: [userId], // ✅ FIXED
           },
         },
       });
@@ -134,5 +144,4 @@ export class NotificationService {
 
   return { success: true };
 }
-  
 }
