@@ -40,6 +40,7 @@
     "helmet": "^8.1.0",
     "multer": "^2.0.2",
     "nodemailer": "^8.0.5",
+    "nodemailer-brevo-transport": "^2.2.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pdfkit": "^0.18.0",

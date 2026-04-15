@@ -182,7 +182,7 @@ if (task.assignedToId) {
 
   if (user) {
     await this.emailService.sendMail(
-      "rakeshgnanendra@gmail.com", // ✅ your verified email
+      user.email, // ✅ your verified email
       "New Task Assigned",
       `Hi ${user.firstName},
 
