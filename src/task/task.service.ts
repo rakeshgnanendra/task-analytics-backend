@@ -252,19 +252,18 @@ if (task.assignedToId) {
 
       <!-- BUTTON -->
       <div style="text-align:center; margin:30px 0;">
-       <a href="https://taskanalyticsdp.netlify.app/tasks/${task.id}"
-   style="
-     display:inline-block;
-     background:linear-gradient(90deg,#4f46e5,#7c3aed);
-     color:white;
-     padding:12px 24px;
-     border-radius:8px;
-     text-decoration:none;
-     font-weight:600;
-     box-shadow:0 4px 10px rgba(0,0,0,0.15);
-   ">
-   View Task
-</a>
+     <a href="https://taskanalyticsdp.netlify.app"
+         style="
+           display:inline-block;
+           padding:12px 24px;
+           font-size:14px;
+           font-weight:bold;
+           color:#ffffff;
+           text-decoration:none;
+           border-radius:6px;
+         ">
+        View Task
+      </a>
       </div>
 
       <p style="color:#777;">
