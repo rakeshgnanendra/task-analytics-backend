@@ -10,14 +10,19 @@ export class EmailService {
     })
   );
 
-  async sendMail(
-to: string, subject: string,  html: string) {
+ async sendMail(
+  to: string | string[],
+  subject: string,
+  html: string,
+  cc?: string[]   // 👈 OPTIONAL
+) {
   try {
     await this.transporter.sendMail({
       from: process.env.EMAIL_FROM,
-      to,
+      to: Array.isArray(to) ? to.join(",") : to,
+      cc: cc?.length ? cc.join(",") : undefined, // 👈 ADD THIS
       subject,
-      html, // ✅ only send
+      html,
     });
 
     console.log("Email sent via API!");

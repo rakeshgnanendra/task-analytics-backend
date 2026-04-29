@@ -738,24 +738,174 @@ if (updatedTask.assignedToId && newStatus !== task.status) {
   });
 
   if (user?.email) {
-    await this.emailService.sendMail(
-      user.email,
-      "Task Status Updated",
-      `
-Hi ${user.firstName},
+const html = `
+<div style="background:#f4f6fb; padding:20px; font-family:Arial, sans-serif;">
 
-Your task status has been updated.
+  <div style="max-width:650px; margin:auto; background:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,0.08);">
 
-Title: ${updatedTask.title}
-New Status: ${updatedTask.status}
+    <!-- HEADER -->
+    <div style="background:linear-gradient(90deg,#4f46e5,#7c3aed); color:white; padding:20px;">
+      <h2 style="margin:0;">Task Analytics</h2>
+      <p style="margin:5px 0 0; font-size:13px; opacity:0.8;">
+        Status Update
+      </p>
+    </div>
 
-Please login to check details.
+    <!-- BODY -->
+    <div style="padding:25px;">
 
-Thanks,
-Task Analytics
-`
-    );
+      <p style="font-size:16px;">
+        Hi <b>${user.firstName}</b>,
+      </p>
+
+      <p style="color:#555;">
+        The status of your task has been updated.
+      </p>
+
+      <!-- TASK DETAILS -->
+      <div style="border:1px solid #eee; border-radius:8px; padding:15px; background:#fafbff;">
+
+        <table style="width:100%; font-size:14px; color:#333;">
+          <tr>
+            <td><b>Ticket ID</b></td>
+            <td>${task.ticketId}</td>
+          </tr>
+          <tr>
+            <td><b>Title</b></td>
+            <td>${task.title}</td>
+          </tr>
+          <tr>
+            <td><b>Updated Status</b></td>
+            <td style="
+              padding:4px 8px;
+              border-radius:4px;
+              font-weight:bold;
+              color:white;
+              background:${
+                task.status === "COMPLETED"
+                  ? "#16a34a"
+                  : task.status === "IN_PROGRESS"
+                  ? "#2563eb"
+                  : task.status === "REWORK"
+                  ? "#f59e0b"
+                  : task.status === "REJECTED"
+                  ? "#dc2626"
+                  : "#6b7280"
+              };
+            ">
+              ${task.status}
+            </td>
+          </tr>
+        </table>
+
+      </div>
+
+      <!-- BUTTON -->
+      <div style="text-align:center; margin:30px 0;">
+        <a href="https://taskanalyticsdp.netlify.app"
+           style="
+             display:inline-block;
+             padding:12px 24px;
+             background:linear-gradient(90deg,#4f46e5,#7c3aed);
+             color:#ffffff;
+             text-decoration:none;
+             border-radius:6px;
+             font-weight:bold;
+           ">
+           View Task
+        </a>
+      </div>
+
+      <p style="color:#777;">
+        Please login to your dashboard for more details.
+      </p>
+
+    </div>
+
+    <!-- FOOTER -->
+    <div style="background:#f1f5f9; padding:15px; text-align:center; font-size:12px; color:#888;">
+      © 2026 Task Analytics • Digital Personas
+    </div>
+
+  </div>
+</div>
+`;
+const to = user.email;
+let cc: string[] = [];
+
+// =====================
+// PROJECT → PM + DH
+// =====================
+if (task.projectId) {
+  const project = await this.prisma.project.findUnique({
+    where: { id: task.projectId },
+  });
+  
+ const managerLink = await this.prisma.projectMember.findFirst({
+      where: {
+       
+        role: ProjectRole.PROJECT_MANAGER,
+      },
+    })
+  // 👉 PM (if you have project.managerId)
+  if (ProjectRole?.PROJECT_MANAGER) {
+    const pm = await this.prisma.user.findUnique({
+      where: { id: ProjectRole.PROJECT_MANAGER },
+    });
+
+    if (pm?.email) {
+      cc.push(pm.email);
+    }
   }
+
+  // 👉 Delivery Head
+  if (project?.deliveryHeadId) {
+    const dh = await this.prisma.user.findUnique({
+      where: { id: project.deliveryHeadId },
+    });
+
+    if (dh?.email) {
+      cc.push(dh.email);
+    }
+  }
+}
+
+// =====================
+// DEPARTMENT → DH
+// =====================
+if (task.departmentId) {
+  const dept = await this.prisma.department.findUnique({
+    where: { id: task.departmentId },
+  });
+
+  // ⚠️ FIX THIS FIELD NAME BASED ON YOUR SCHEMA
+  if (dept?.id) {
+    const head = await this.prisma.user.findUnique({
+      where: { id: dept.id },
+    });
+
+    if (head?.email) {
+      cc.push(head.email);
+    }
+  }
+}
+
+// =====================
+// CLEAN DUPLICATES
+// =====================
+cc = [...new Set(cc.filter(email => email !== to))];
+
+// =====================
+// SEND EMAIL
+// =====================
+await this.emailService.sendMail(
+  to,
+  "Task Status Updated",
+  html,
+  cc
+);
+  }
+  
 }
 // =========================
 // 🔥 NOTIFICATION LOGIC
