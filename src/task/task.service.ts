@@ -801,20 +801,21 @@ const html = `
       </div>
 
       <!-- BUTTON -->
-      <div style="text-align:center; margin:30px 0;">
-        <a href="https://taskanalyticsdp.netlify.app"
-           style="
-             display:inline-block;
-             padding:12px 24px;
-             background:linear-gradient(90deg,#4f46e5,#7c3aed);
-             color:#ffffff;
-             text-decoration:none;
-             border-radius:6px;
-             font-weight:bold;
-           ">
-           View Task
-        </a>
-      </div>
+    <div style="text-align:center; margin:30px 0;">
+  <a href="https://taskanalyticsdp.netlify.app"
+     style="
+       display:inline-block;
+       padding:12px 24px;
+       background:#4f46e5; /* ✅ FIXED */
+       color:#ffffff;
+       text-decoration:none;
+       border-radius:6px;
+       font-weight:bold;
+       font-size:14px;
+     ">
+     View Task
+  </a>
+</div>
 
       <p style="color:#777;">
         Please login to your dashboard for more details.
