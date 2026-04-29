@@ -793,7 +793,7 @@ const html = `
                   : "#6b7280"
               };
             ">
-              ${task.status}
+              ${updatedTask.status}
             </td>
           </tr>
         </table>
