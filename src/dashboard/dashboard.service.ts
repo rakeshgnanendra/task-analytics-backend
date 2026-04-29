@@ -478,11 +478,13 @@ const overduePerProject = await this.prisma.task.groupBy({
       
     })
 
-    const completed = await this.prisma.task.count({
+   const completed = await this.prisma.task.count({
   where: {
     assignedToId: userId,
-    status: TaskStatus.CONFIRMED,
-    isDeleted: false
+    status: {
+      in: [TaskStatus.COMPLETED, TaskStatus.CONFIRMED],
+    },
+    isDeleted: false,
   },
 })
     const inProgress = await this.prisma.task.count({
