@@ -258,59 +258,82 @@ doc.text('Time', col4 + 5, tableTop + 5)
     doc.font('Helvetica').fontSize(9)
 
     // 🔹 ROWS
-    tasks.forEach((task, index) => {
-      const fullName = task.assignedTo
-        ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}`
-        : '-'
+   const pageHeight = doc.page.height;
+const bottomMargin = 50;
+const rowHeight = 20;
 
-      const time =
-        task.timeSpentHours
-          ? `${task.timeSpentHours} hrs`
-          : task.timeSpentDays
-          ? `${task.timeSpentDays} days`
-          : '-'
+tasks.forEach((task, index) => {
+  // ✅ PAGE BREAK FIX
+  if (y + rowHeight > pageHeight - bottomMargin) {
+    doc.addPage();
+    y = 100; // reset Y
+  }
 
-      // 🎨 Alternating row color
-      if (index % 2 === 0) {
-       doc.rect(col1, y, 460, 20).fill('#f5f5f5')
-        doc.fillColor('black')
-      }
+  const fullName = task.assignedTo
+    ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}`
+    : '-';
 
-      // Cells
-     // Ticket
-// Ticket (🔥 FIXED)
-doc.rect(col0, y, 110, 20).stroke()
-doc.text(task.ticketId || '-', col0 + 5, y + 5, {
-  width: 100,
-  lineBreak: false, // 🔥 prevents wrapping
+  const time =
+    task.timeSpentHours
+      ? `${task.timeSpentHours} hrs`
+      : task.timeSpentDays
+      ? `${task.timeSpentDays} days`
+      : '-';
+
+  // 🎨 Alternating row background
+  if (index % 2 === 0) {
+    doc.rect(col0, y, 500, rowHeight).fill('#f5f5f5');
+    doc.fillColor('black');
+  }
+
+  // 🔥 CUT TEXT (NO WRAP)
+  const trim = (text: string, max = 20) =>
+    text && text.length > max ? text.substring(0, max) + '...' : text || '-';
+
+  // Ticket
+  doc.rect(col0, y, 110, rowHeight).stroke();
+  doc.text(task.ticketId || '-', col0 + 5, y + 5, {
+  width: 100,
+  lineBreak: false, // 🔥 prevents wrapping
 })
 
-// Title
-doc.rect(col1, y, 160, 20).stroke()
-doc.text(task.title, col1 + 5, y + 5, { width: 150 })
 
-// Status
-doc.rect(col2, y, 90, 20).stroke()
-let statusColor = 'black'
+  // Title (🔥 FIX)
+  doc.rect(col1, y, 160, rowHeight).stroke();
+  doc.text(trim(task.title, 25), col1 + 5, y + 5, {
+    width: 150,
+    lineBreak: false,
+  });
 
-if (task.status === 'COMPLETED') statusColor = 'green'
-else if (task.status === 'REJECTED') statusColor = 'red'
-else if (task.status === 'IN_PROGRESS') statusColor = 'orange'
-else if (task.status === 'CREATED') statusColor = 'blue'
+  // Status
+  doc.rect(col2, y, 90, rowHeight).stroke();
 
-doc.fillColor(statusColor).text(task.status, col2 + 8, y + 7)
-doc.fillColor('black')
+  let statusColor = 'black';
+  if (task.status === 'COMPLETED') statusColor = 'green';
+  else if (task.status === 'REJECTED') statusColor = 'red';
+  else if (task.status === 'IN_PROGRESS') statusColor = 'orange';
+  else if (task.status === 'CREATED') statusColor = 'blue';
 
+  doc.fillColor(statusColor).text(task.status, col2 + 8, y + 5, {
+    lineBreak: false,
+  });
 
-// User
-doc.rect(col3, y, 80, 20).stroke()
-doc.text(fullName, col3 + 5, y + 5)
+  doc.fillColor('black');
 
-// Time
-doc.rect(col4, y, 60, 20).stroke()
-doc.text(time, col4 + 5, y + 5)
-      y += 20
-    })
+  // User
+  doc.rect(col3, y, 80, rowHeight).stroke();
+  doc.text(trim(fullName, 15), col3 + 5, y + 5, {
+    lineBreak: false,
+  });
+
+  // Time
+  doc.rect(col4, y, 60, rowHeight).stroke();
+  doc.text(time, col4 + 5, y + 5, {
+    lineBreak: false,
+  });
+
+  y += rowHeight;
+});
     doc.y = y + 10
 
     // =========================
