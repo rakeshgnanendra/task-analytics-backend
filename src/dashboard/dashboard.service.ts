@@ -499,8 +499,14 @@ const overduePerProject = await this.prisma.task.groupBy({
   where: {
     assignedToId: userId,
     dueDate: { lt: today },
-    status: { not: TaskStatus.CONFIRMED },
-    isDeleted: false
+    status: {
+      in: [
+        TaskStatus.CREATED,
+        TaskStatus.IN_PROGRESS,
+        TaskStatus.REWORK,
+      ],
+    },
+    isDeleted: false,
   },
 })
  const statusDistribut = await this.getStatusDistribution({
