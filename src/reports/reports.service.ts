@@ -151,7 +151,7 @@ else if (type === 'team') {
     let totalDays = 0
 
     tasks.forEach(t => {
-      totalHours += t.timeSpentHours || 0
+      totalHours += t.timeSpentMinutes || 0
    
     })
 
@@ -274,9 +274,9 @@ tasks.forEach((task, index) => {
     : '-';
 
   const time =
-    task.timeSpentHours
-      ? `${task.timeSpentHours} hrs`
-      : task.timeSpentHours
+    task.timeSpentMinutes
+      ? `${task.timeSpentMinutes} hrs`
+      : task.timeSpentMinutes
       
 
   // 🎨 Alternating row background
