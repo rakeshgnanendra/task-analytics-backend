@@ -128,7 +128,9 @@ model Task {
   priority     Priority    @default(MEDIUM)
   status       TaskStatus  @default(CREATED)
   timeSpentHours Int?
-timeSpentDays  Int?
+timeSpentMinutes Int?
+completionComment String?
+completionAttachments Json?
   startedAt    DateTime?
   completedAt  DateTime?
   confirmedAt  DateTime?

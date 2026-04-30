@@ -109,10 +109,8 @@ async updateStatus(
     user.userId,
     user.role,
     body.status, // ✅ correct
-    {
-      timeSpentHours: body.timeSpentHours,
-      timeSpentDays: body.timeSpentDays,
-    }
+    body.completionComment,
+    body.CompletionAttachments
   );
 }
 @Get(':id/logs')

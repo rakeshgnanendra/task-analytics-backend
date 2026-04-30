@@ -531,10 +531,12 @@ async updateTaskStatus(
   userId: string,
   globalRole: string,
   newStatus: TaskStatus,
-  timeData?: {
-    timeSpentHours?: number
-    timeSpentDays?: number
-  }
+  completionComment:string,
+  completionAttachments:JSON,
+  
+    timeSpent?: number
+    
+  
 ) {
   // ===============================
   // 1️⃣ FETCH TASK
@@ -544,7 +546,9 @@ async updateTaskStatus(
   })
 
   if (!task) throw new NotFoundException('Task not found')
-
+  if (task.status === 'REJECTED' && !completionComment) {
+    throw new Error('Rejection comment is required')
+  }
   if (task.isLocked) {
     throw new ForbiddenException(
       'Task is locked and cannot be modified',
@@ -680,40 +684,32 @@ if (task.projectId !== null && task.projectId !== undefined) {
   if (newStatus === TaskStatus.IN_PROGRESS) {
     updateData.startedAt = new Date()
   }
+  let timeSpentMinutes = 0
 
+
+
+if (timeSpent !== undefined && timeSpent !== null) {
+  const timeStr = String(timeSpent) // 🔥 FORCE STRING
+
+  if (timeStr.includes(':')) {
+    const [hrs, mins] = timeStr.split(':')
+    const h = parseInt(hrs) || 0
+    const m = parseInt(mins) || 0
+    timeSpentMinutes = h * 60 + m
+  } else {
+    // If already number like 510
+    timeSpentMinutes = Number(timeSpent) || 0
+  }
+}
+
+  // 🧱 EXISTING UPDATE OBJECT (EXTENDED, NOT REPLACED)
+ 
   if (newStatus === TaskStatus.COMPLETED) {
-
-  // 🚨 VALIDATION (VERY IMPORTANT)
-  if (
-    !timeData ||
-    (!timeData.timeSpentHours && !timeData.timeSpentDays)
-  ) {
-    throw new BadRequestException(
-      'Time spent (hours or days) is required to complete task',
-    )
-  }
-
-  // ❌ Prevent both values
-  if (
-    timeData.timeSpentHours &&
-    timeData.timeSpentDays
-  ) {
-    throw new BadRequestException(
-      'Provide either hours OR days, not both',
-    )
-  }
-
-  updateData.completedAt = new Date()
-
-  // ✅ Save hours
-  if (timeData.timeSpentHours) {
-    updateData.timeSpentHours = timeData.timeSpentHours
-  }
-
-  // ✅ Save days
-  if (timeData.timeSpentDays) {
-    updateData.timeSpentDays = timeData.timeSpentDays
-  }
+    updateData.completionComment = completionComment || null
+    updateData.completionAttachments = completionAttachments || []
+    updateData.timeSpentMinutes = timeSpentMinutes
+    updateData.completedAt = new Date()
+ 
 }
 
   if (newStatus === TaskStatus.REWORK) {
@@ -738,6 +734,7 @@ if (updatedTask.assignedToId && newStatus !== task.status) {
   });
 
   if (user?.email) {
+    if(updatedTask.status === "CONFIRMED" || updatedTask.status === "REJECTED"){
 const html = `
 <div style="background:#f4f6fb; padding:20px; font-family:Arial, sans-serif;">
 
@@ -907,6 +904,7 @@ await this.emailService.sendMail(
 );
   }
   
+}
 }
 // =========================
 // 🔥 NOTIFICATION LOGIC
