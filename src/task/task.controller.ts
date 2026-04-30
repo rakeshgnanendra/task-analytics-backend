@@ -110,7 +110,7 @@ async updateStatus(
     user.role,
     body.status, // ✅ correct
     body.completionComment,
-    body.CompletionAttachments
+  
   );
 }
 @Get(':id/logs')

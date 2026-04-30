@@ -527,17 +527,18 @@ for (const uid of usersToNotify) {
 
 // }
 async updateTaskStatus(
-  taskId: string,
-  userId: string,
-  globalRole: string,
-  newStatus: TaskStatus,
-  completionComment:string,
-  completionAttachments:JSON,
-  
-    timeSpent?: number
+ taskId: string, body: any, user: any, globalRole:string, newStatus:string
     
   
 ) {
+   const {
+    status,
+    comment,
+    attachments,
+    timeSpent,
+    notify
+  } = body
+  
   // ===============================
   // 1️⃣ FETCH TASK
   // ===============================
@@ -546,7 +547,7 @@ async updateTaskStatus(
   })
 
   if (!task) throw new NotFoundException('Task not found')
-  if (task.status === 'REJECTED' && !completionComment) {
+  if (task.status === 'REJECTED' && !comment) {
     throw new Error('Rejection comment is required')
   }
   if (task.isLocked) {
@@ -568,7 +569,7 @@ if (task.projectId !== null && task.projectId !== undefined) {
   const managerLink = await this.prisma.projectMember.findFirst({
     where: {
       projectId: task.projectId,
-      userId,
+      user,
       role: ProjectRole.PROJECT_MANAGER,
     },
   });
@@ -589,7 +590,7 @@ if (task.projectId !== null && task.projectId !== undefined) {
   }
 
   // Assigned User (Team Member)
-  const isAssignedUser = task.assignedToId === userId
+  const isAssignedUser = task.assignedToId === user
 
   // ===============================
   // 3️⃣ STATE MACHINE
@@ -607,7 +608,7 @@ if (task.projectId !== null && task.projectId !== undefined) {
     REJECTED: [],
   }
 
-  if (!allowedTransitions[task.status].includes(newStatus)) {
+  if (!allowedTransitions[task.status].includes(status)) {
     throw new BadRequestException('Invalid status transition')
   }
 
@@ -705,8 +706,8 @@ if (timeSpent !== undefined && timeSpent !== null) {
   // 🧱 EXISTING UPDATE OBJECT (EXTENDED, NOT REPLACED)
  
   if (newStatus === TaskStatus.COMPLETED) {
-    updateData.completionComment = completionComment || null
-    updateData.completionAttachments = completionAttachments || []
+    updateData.completionComment = comment || null
+    updateData.completionAttachments = attachments || []
     updateData.timeSpentMinutes = timeSpentMinutes
     updateData.completedAt = new Date()
  
@@ -944,7 +945,7 @@ if (updatedTask.departmentId) {
 }
 
 // ❌ REMOVE CURRENT USER
-usersToNotify.delete(userId);
+usersToNotify.delete(user);
 
 // 🔥 SEND
 for (const uid of usersToNotify) {
@@ -972,7 +973,7 @@ for (const uid of usersToNotify) {
     'TASK_STATUS_CHANGED',
     'TASK',
     taskId,
-    userId,
+    user,
     {
       from: task.status,
       to: newStatus,
