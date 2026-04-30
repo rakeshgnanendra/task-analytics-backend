@@ -127,7 +127,7 @@ model Task {
   dueDate      DateTime
   priority     Priority    @default(MEDIUM)
   status       TaskStatus  @default(CREATED)
-  timeSpentHours Int?
+  
 timeSpentMinutes Int?
 completionComment String?
 completionAttachments Json?
