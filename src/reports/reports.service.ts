@@ -8,6 +8,16 @@ import { filter } from 'rxjs'
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
+private formatMinutesAsHHMM(minutes?: number | null) {
+  const total = Math.max(0, minutes || 0)
+  const hours = Math.floor(total / 60)
+  const mins = total % 60
+
+  return `${hours.toString().padStart(2, '0')}:${mins
+    .toString()
+    .padStart(2, '0')}`
+}
+
 private getDateRange(
   duration: string,
   startDate?: string,
@@ -147,11 +157,10 @@ else if (type === 'team') {
     const pending =
       tasks.filter(t => t.status !== 'COMPLETED' && t.status !== 'CONFIRMED').length
 
-    let totalHours = 0
-    let totalDays = 0
+    let totalMinutes = 0
 
     tasks.forEach(t => {
-      totalHours += t.timeSpentMinutes || 0
+      totalMinutes += t.timeSpentMinutes || 0
    
     })
 
@@ -211,11 +220,7 @@ doc.font('Helvetica')
     doc.text(`Completed: ${completed}`)
     doc.text(`Confirmed: ${confirmed}`)
     doc.text(`Pending: ${pending}`)
-    doc.text(
-      `Total Time: ${totalHours} hrs ${
-        totalDays ? `+ ${totalDays} days` : ''
-      }`,
-    )
+    doc.text(`Total Time: ${this.formatMinutesAsHHMM(totalMinutes)}`)
 
     doc.moveDown(1)
 
@@ -273,10 +278,7 @@ tasks.forEach((task, index) => {
     ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}`
     : '-';
 
-  const time =
-    task.timeSpentMinutes
-      ? `${task.timeSpentMinutes} hrs`
-      : task.timeSpentMinutes
+  const time = this.formatMinutesAsHHMM(task.timeSpentMinutes)
       
 
   // 🎨 Alternating row background
@@ -406,13 +408,6 @@ doc.fillColor('black') // reset color
     const formatDate = (value?: Date | string | null) =>
       value ? new Date(value).toISOString().split('T')[0] : ''
 
-    const formatTime = (minutes?: number | null) => {
-      const total = minutes || 0
-      const hours = Math.floor(total / 60)
-      const mins = total % 60
-      return `${hours}h ${mins}m`
-    }
-
     const headers = [
       'Ticket ID',
       'Title',
@@ -444,7 +439,7 @@ doc.fillColor('black') // reset color
         task.department?.name,
         formatDate(task.dueDate),
         formatDate(task.createdAt),
-        formatTime(task.timeSpentMinutes),
+        this.formatMinutesAsHHMM(task.timeSpentMinutes),
         task.status === 'REJECTED' ? task.completionComment : '',
       ]
     })
