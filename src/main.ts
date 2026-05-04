@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { NestFactory } from '@nestjs/core'
 import { AppModule } from './app.module'
 import { join } from 'path'
@@ -17,6 +18,7 @@ async function bootstrap() {
 app.enableCors({
   origin: [
     'http://localhost:5173',
+    'http://127.0.0.1:5173',
     'https://taskanalyticsdp.netlify.app',
   ],
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',

@@ -527,17 +527,20 @@ for (const uid of usersToNotify) {
 
 // }
 async updateTaskStatus(
- taskId: string, body: any, user: any, globalRole:string, newStatus:string
-    
-  
+ taskId: string,
+ body: any,
+ user: string,
+ globalRole: string,
 ) {
    const {
     status,
     comment,
     attachments,
     timeSpent,
-    notify
+    timeSpentHours,
+    timeSpentMinutes: timeSpentMinutesInput,
   } = body
+  const newStatus = status as TaskStatus
   
   // ===============================
   // 1️⃣ FETCH TASK
@@ -547,13 +550,16 @@ async updateTaskStatus(
   })
 
   if (!task) throw new NotFoundException('Task not found')
-  if (task.status === 'REJECTED' && !comment) {
-    throw new Error('Rejection comment is required')
-  }
   if (task.isLocked) {
     throw new ForbiddenException(
       'Task is locked and cannot be modified',
     )
+  }
+  if (!newStatus || !Object.values(TaskStatus).includes(newStatus)) {
+    throw new BadRequestException('Invalid status')
+  }
+  if (newStatus === TaskStatus.REJECTED && !String(comment || '').trim()) {
+    throw new BadRequestException('Rejection comment is required')
   }
 
   // ===============================
@@ -569,7 +575,7 @@ if (task.projectId !== null && task.projectId !== undefined) {
   const managerLink = await this.prisma.projectMember.findFirst({
     where: {
       projectId: task.projectId,
-      user,
+      userId: user,
       role: ProjectRole.PROJECT_MANAGER,
     },
   });
@@ -608,7 +614,7 @@ if (task.projectId !== null && task.projectId !== undefined) {
     REJECTED: [],
   }
 
-  if (!allowedTransitions[task.status].includes(status)) {
+  if (!allowedTransitions[task.status].includes(newStatus)) {
     throw new BadRequestException('Invalid status transition')
   }
 
@@ -687,31 +693,62 @@ if (task.projectId !== null && task.projectId !== undefined) {
   }
   let timeSpentMinutes = 0
 
+  if (newStatus === TaskStatus.COMPLETED) {
+    const hasSplitTime =
+      timeSpentHours !== undefined ||
+      timeSpentMinutesInput !== undefined
 
+    if (hasSplitTime) {
+      const hours = Number(timeSpentHours || 0)
+      const minutes = Number(timeSpentMinutesInput || 0)
 
-if (timeSpent !== undefined && timeSpent !== null) {
-  const timeStr = String(timeSpent) // 🔥 FORCE STRING
+      if (
+        !Number.isInteger(hours) ||
+        !Number.isInteger(minutes) ||
+        hours < 0 ||
+        minutes < 0 ||
+        minutes > 59 ||
+        hours * 60 + minutes <= 0
+      ) {
+        throw new BadRequestException('Time spent must be valid hours and minutes')
+      }
 
-  if (timeStr.includes(':')) {
-    const [hrs, mins] = timeStr.split(':')
-    const h = parseInt(hrs) || 0
-    const m = parseInt(mins) || 0
-    timeSpentMinutes = h * 60 + m
-  } else {
-    // If already number like 510
-    timeSpentMinutes = Number(timeSpent) || 0
+      timeSpentMinutes = hours * 60 + minutes
+    } else if (typeof timeSpent === 'string' && timeSpent.includes(':')) {
+      const [hrs, mins] = timeSpent.split(':')
+      const hours = Number(hrs)
+      const minutes = Number(mins)
+
+      if (
+        !Number.isInteger(hours) ||
+        !Number.isInteger(minutes) ||
+        hours < 0 ||
+        minutes < 0 ||
+        minutes > 59 ||
+        hours * 60 + minutes <= 0
+      ) {
+        throw new BadRequestException('Time spent must be valid hours and minutes')
+      }
+
+      timeSpentMinutes = hours * 60 + minutes
+    } else {
+      throw new BadRequestException('Time spent is required to complete a task')
+    }
   }
-}
 
   // 🧱 EXISTING UPDATE OBJECT (EXTENDED, NOT REPLACED)
  
   if (newStatus === TaskStatus.COMPLETED) {
-    updateData.completionComment = comment || null
+    updateData.completionComment = String(comment || '').trim() || null
     updateData.completionAttachments = attachments || []
     updateData.timeSpentMinutes = timeSpentMinutes
     updateData.completedAt = new Date()
  
 }
+
+  if (newStatus === TaskStatus.REJECTED) {
+    updateData.completionComment = String(comment).trim()
+  }
 
   if (newStatus === TaskStatus.REWORK) {
     updateData.completedAt = null
@@ -986,20 +1023,31 @@ async uploadFile(taskId: string, userId: string, file: Express.Multer.File) {
   const task = await this.prisma.task.findUnique({
     where: { id: taskId },
   })
- const memberLink = await this.prisma.projectMember.findFirst({
-  where: {
-    projectId: taskId!,
-    userId
-  }
-})
-
-if (!memberLink) {
-  throw new ForbiddenException(
-    "You are not part of this project"
-  )
-}
 
   if (!task) throw new NotFoundException('Task not found')
+  if (!file) throw new BadRequestException('File is required')
+
+  let canUpload =
+    task.assignedToId === userId ||
+    task.createdById === userId
+
+  if (!canUpload && task.projectId) {
+    const managerLink = await this.prisma.projectMember.findFirst({
+      where: {
+        projectId: task.projectId,
+        userId,
+        role: ProjectRole.PROJECT_MANAGER,
+      },
+    })
+
+    canUpload = !!managerLink
+  }
+
+  if (!canUpload) {
+    throw new ForbiddenException(
+      "You are not allowed to upload files for this task"
+    )
+  }
 
  if (task.status === 'CONFIRMED') {
     throw new ForbiddenException(

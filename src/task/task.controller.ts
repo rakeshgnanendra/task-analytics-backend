@@ -9,6 +9,7 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFiles,
+  UploadedFile,
   Req,
   Res,
 } from '@nestjs/common'
@@ -106,11 +107,9 @@ async updateStatus(
 ) {
   return this.taskService.updateTaskStatus(
     taskId,
+    body,
     user.userId,
     user.role,
-    body.status, // ✅ correct
-    body.completionComment,
-  
   );
 }
 @Get(':id/logs')
@@ -135,7 +134,7 @@ async getLogs(@Param('id') taskId: string) {
 )
 async uploadFile(
   @Param('id') taskId: string,
-  @UploadedFiles() file: Express.Multer.File,
+  @UploadedFile() file: Express.Multer.File,
   @Req() req: any,
 ) {
   console.log('FILE RECEIVED:', file)
