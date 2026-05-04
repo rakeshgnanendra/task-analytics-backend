@@ -360,4 +360,107 @@ doc.fillColor('black') // reset color
 
     doc.end()
   }
+
+  async generateTaskCsvReport(
+    duration: string,
+    startDate: string,
+    endDate: string,
+    type: string,
+    entityId: string,
+    res: Response,
+  ) {
+    const { start, end } = this.getDateRange(duration, startDate, endDate)
+    const filter: any = {}
+
+    if (type === 'employee') {
+      filter.assignedToId = entityId
+    } else if (type === 'project' || type === 'team') {
+      filter.projectId = entityId
+    } else if (type === 'department') {
+      filter.departmentId = entityId
+    }
+
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+        ...filter,
+      },
+      include: {
+        assignedTo: true,
+        project: true,
+        department: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    })
+
+    const escapeCsv = (value: unknown) => {
+      const text = value === null || value === undefined ? '' : String(value)
+      return `"${text.replace(/"/g, '""')}"`
+    }
+
+    const formatDate = (value?: Date | string | null) =>
+      value ? new Date(value).toISOString().split('T')[0] : ''
+
+    const formatTime = (minutes?: number | null) => {
+      const total = minutes || 0
+      const hours = Math.floor(total / 60)
+      const mins = total % 60
+      return `${hours}h ${mins}m`
+    }
+
+    const headers = [
+      'Ticket ID',
+      'Title',
+      'Description',
+      'Status',
+      'Priority',
+      'Assigned To',
+      'Project',
+      'Department',
+      'Due Date',
+      'Created Date',
+      'Time Spent',
+      'Rejected Comment',
+    ]
+
+    const rows = tasks.map((task) => {
+      const assignedTo = task.assignedTo
+        ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}`
+        : ''
+
+      return [
+        task.ticketId,
+        task.title,
+        task.description,
+        task.status,
+        task.priority,
+        assignedTo,
+        task.project?.name,
+        task.department?.name,
+        formatDate(task.dueDate),
+        formatDate(task.createdAt),
+        formatTime(task.timeSpentMinutes),
+        task.status === 'REJECTED' ? task.completionComment : '',
+      ]
+    })
+
+    const csv = [
+      headers.map(escapeCsv).join(','),
+      ...rows.map((row) => row.map(escapeCsv).join(',')),
+    ].join('\r\n')
+
+    const today = new Date().toISOString().split('T')[0]
+    const safeType = type || 'report'
+    const safeDuration = duration || 'custom'
+    const fileName = `TaskAnalytics_${safeType}_${safeDuration}_${today}.csv`
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`)
+    res.send(csv)
+  }
 }

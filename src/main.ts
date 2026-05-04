@@ -23,6 +23,7 @@ app.enableCors({
   ],
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
   allowedHeaders: 'Content-Type, Authorization',
+  exposedHeaders: ['Content-Disposition'],
   credentials: true,
 });
 app.use((req, res, next) => {
@@ -35,6 +36,7 @@ app.use((req, res, next) => {
     'Access-Control-Allow-Methods',
     'GET, POST, PUT, PATCH, DELETE, OPTIONS'
   );
+  res.header('Access-Control-Expose-Headers', 'Content-Disposition');
 
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);

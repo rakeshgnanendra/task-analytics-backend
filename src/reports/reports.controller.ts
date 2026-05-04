@@ -22,8 +22,20 @@ export class ReportsController {
      @Query('type') type: string,
   @Query('entityId') entityId: string,
   @Query('duration') duration: string,
+  @Query('format') format: string,
     @Res() res: Response,
   ) {
+    if (format === 'csv') {
+      return this.reportsService.generateTaskCsvReport(
+        duration,
+        startDate,
+        endDate,
+        type,
+        entityId,
+        res,
+      )
+    }
+
     return this.reportsService.generateTaskReport(
        duration,
   startDate,
