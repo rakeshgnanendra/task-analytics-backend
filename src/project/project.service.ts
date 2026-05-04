@@ -100,7 +100,6 @@ async getProjects(userId: string, role: string) {
         members: {
           some: {
             userId: userId,
-            role: 'PROJECT_MANAGER'
           }
         }
       },
