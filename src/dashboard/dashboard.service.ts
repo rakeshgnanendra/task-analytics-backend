@@ -535,6 +535,7 @@ const overduePerProject = await this.prisma.task.groupBy({
 
   // Convert array → object format
   const result = {
+    PENDING_APPROVAL: 0,
     CREATED: 0,
     IN_PROGRESS: 0,
     COMPLETED: 0,

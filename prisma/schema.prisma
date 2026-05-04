@@ -197,6 +197,7 @@ enum ProjectRole {
 }
 
 enum TaskStatus {
+  PENDING_APPROVAL
   CREATED
   IN_PROGRESS
   COMPLETED

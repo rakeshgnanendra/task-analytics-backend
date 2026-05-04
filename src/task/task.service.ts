@@ -44,6 +44,7 @@ async createTask(
   notifyEmployeeEmail?: string,
 ) {
   const extraNotifyEmail = notifyEmployeeEmail?.trim()
+  const isSelfCreated = creatorId === assignedToId
 
   if (extraNotifyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(extraNotifyEmail)) {
     throw new BadRequestException('Notify employee email is invalid')
@@ -66,7 +67,7 @@ async createTask(
     assignedToId,
     dueDate,
     priority,
-    status: TaskStatus.CREATED,
+    status: isSelfCreated ? TaskStatus.PENDING_APPROVAL : TaskStatus.CREATED,
   }
 
   // =========================
@@ -90,7 +91,7 @@ async createTask(
       },
     })
 
-    if (!managerLink) {
+    if (!managerLink && !isSelfCreated) {
       throw new ForbiddenException(
         'Only Project Manager can create tasks in this project',
       )
@@ -126,7 +127,7 @@ async createTask(
       throw new NotFoundException('Department not found')
     }
 
-    if (creatorRole !== 'DELIVERY_HEAD') {
+    if (creatorRole !== 'DELIVERY_HEAD' && !isSelfCreated) {
       throw new ForbiddenException(
         'Only Delivery Head can create tasks for departments',
       )
@@ -610,6 +611,7 @@ if (task.projectId !== null && task.projectId !== undefined) {
   // 3️⃣ STATE MACHINE
   // ===============================
   const allowedTransitions: Record<TaskStatus, TaskStatus[]> = {
+    PENDING_APPROVAL: [TaskStatus.CREATED, TaskStatus.REJECTED],
     CREATED: [TaskStatus.IN_PROGRESS],
     IN_PROGRESS: [TaskStatus.COMPLETED],
     COMPLETED: [
@@ -645,6 +647,7 @@ if (task.projectId !== null && task.projectId !== undefined) {
   // 🔹 PROJECT MANAGER (Project tasks)
   if (task.projectId && isProjectManager) {
     if (
+      newStatus !== TaskStatus.CREATED &&
       newStatus !== TaskStatus.CONFIRMED &&
       newStatus !== TaskStatus.REJECTED &&
       newStatus !== TaskStatus.REWORK
@@ -658,6 +661,7 @@ if (task.projectId !== null && task.projectId !== undefined) {
   // 🔹 DEPARTMENT HEAD (Department tasks)
   if (task.departmentId && isDepartmentHead) {
     if (
+      newStatus !== TaskStatus.CREATED &&
       newStatus !== TaskStatus.CONFIRMED &&
       newStatus !== TaskStatus.REJECTED &&
       newStatus !== TaskStatus.REWORK
