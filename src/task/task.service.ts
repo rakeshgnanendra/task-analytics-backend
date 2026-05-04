@@ -41,7 +41,13 @@ async createTask(
   dueDate: Date,
   priority: Priority,
   files?: Express.Multer.File[],
+  notifyEmployeeEmail?: string,
 ) {
+  const extraNotifyEmail = notifyEmployeeEmail?.trim()
+
+  if (extraNotifyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(extraNotifyEmail)) {
+    throw new BadRequestException('Notify employee email is invalid')
+  }
 
   // ❌ Validation: both missing
   if (!projectId && !departmentId) {
@@ -173,6 +179,7 @@ if (departmentId) {
   const task = await this.prisma.task.create({
     data: taskData,
   })
+
   // 🔥 COLLECT USERS
   
 const usersToNotify = new Set<string>();
@@ -287,7 +294,8 @@ if (task.assignedToId) {
   this.emailService.sendMail(
     user.email,
     "New Task Assigned",
-    html
+    html,
+    extraNotifyEmail && extraNotifyEmail !== user.email ? [extraNotifyEmail] : undefined
   ).catch(err => console.error("Email failed:", err));
 }
 }

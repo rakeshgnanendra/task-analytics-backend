@@ -55,6 +55,7 @@ async createTask(
   @Body("assignedToId") assignedToId: string,
   @Body("dueDate") dueDate: string,
   @Body("priority") priority: Priority,
+  @Body("notifyEmployeeEmail") notifyEmployeeEmail: string,
 ) {
 
   return this.taskService.createTask(
@@ -67,7 +68,8 @@ async createTask(
     assignedToId,             // 7
     new Date(dueDate),        // 8
     priority,                 // 9
-    files                     // 10
+    files,                    // 10
+    notifyEmployeeEmail       // 11
   )
 
 }
