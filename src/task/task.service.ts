@@ -773,6 +773,7 @@ if (updatedTask.assignedToId && newStatus !== task.status) {
 
   if (user?.email) {
     if(updatedTask.status === "CONFIRMED" || updatedTask.status === "REJECTED"){
+const statusColor = updatedTask.status === "REJECTED" ? "#dc2626" : "#16a34a";
 const html = `
 <div style="background:#f4f6fb; padding:20px; font-family:Arial, sans-serif;">
 
@@ -816,21 +817,23 @@ const html = `
               border-radius:4px;
               font-weight:bold;
               color:white;
-              background:${
-                task.status === "COMPLETED"
-                  ? "#16a34a"
-                  : task.status === "IN_PROGRESS"
-                  ? "#2563eb"
-                  : task.status === "REWORK"
-                  ? "#f59e0b"
-                  : task.status === "REJECTED"
-                  ? "#dc2626"
-                  : "#6b7280"
-              };
+              background:${statusColor};
             ">
               ${updatedTask.status}
             </td>
           </tr>
+          ${
+            updatedTask.status === "REJECTED" && updatedTask.completionComment
+              ? `
+          <tr>
+            <td style="padding-top:10px;"><b>Rejected Comment</b></td>
+            <td style="padding-top:10px; color:#991b1b;">
+              ${updatedTask.completionComment}
+            </td>
+          </tr>
+          `
+              : ""
+          }
         </table>
 
       </div>
@@ -1006,15 +1009,21 @@ for (const uid of usersToNotify) {
   // ===============================
   // 8️⃣ LOGGING
   // ===============================
+  const logMetadata: Record<string, string> = {
+    from: task.status,
+    to: newStatus,
+  }
+
+  if (newStatus === TaskStatus.REJECTED) {
+    logMetadata.rejectionComment = String(comment).trim()
+  }
+
   await this.logService.createLog(
     'TASK_STATUS_CHANGED',
     'TASK',
     taskId,
     user,
-    {
-      from: task.status,
-      to: newStatus,
-    },
+    logMetadata,
   )
 
   return updatedTask
