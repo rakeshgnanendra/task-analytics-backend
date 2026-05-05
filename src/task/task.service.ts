@@ -1694,7 +1694,7 @@ async addComment(taskId: string, message: string, userId: string) {
       task.status === "CONFIRMED" ||
       task.status === "REJECTED"
     ) {
-      throw new Error("Chat is disabled for this task");
+      throw new BadRequestException("Chat is disabled for this task");
     }
 
     // =========================
