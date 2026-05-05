@@ -27,6 +27,66 @@ export class TaskService {
    
   constructor(private prisma: PrismaService, private logService:LogsService,  private notificationService: NotificationService,  private socketGateway: SocketGateway, private emailService: EmailService ) {}
 
+  private readonly taskChatInclude = {
+    assignedTo: true,
+    createdBy: true,
+    department: true,
+    project: {
+      include: {
+        deliveryHead: true,
+        members: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    },
+  }
+
+  private async getTaskChatUsers(task: any) {
+    const users: any[] = []
+
+    if (task.assignedTo) users.push(task.assignedTo)
+    if (task.createdBy) users.push(task.createdBy)
+
+    if (task.project?.deliveryHead) {
+      users.push(task.project.deliveryHead)
+    }
+
+    if (task.project?.members?.length) {
+      task.project.members.forEach((member) => {
+        if (member.user) users.push(member.user)
+      })
+    }
+
+    if (task.departmentId) {
+      const departmentHeads = await this.prisma.user.findMany({
+        where: {
+          departmentId: task.departmentId,
+          role: 'DELIVERY_HEAD',
+          isActive: true,
+        },
+      })
+
+      users.push(...departmentHeads)
+    }
+
+    return Array.from(
+      new Map(users.filter(Boolean).map((user) => [user.id, user])).values()
+    )
+  }
+
+  private async ensureTaskChatAccess(task: any, userId: string) {
+    const users = await this.getTaskChatUsers(task)
+    const allowed = users.some((user) => String(user.id) === String(userId))
+
+    if (!allowed) {
+      throw new ForbiddenException('You do not have access to this task chat')
+    }
+
+    return users
+  }
+
   // =============================
   // CREATE TASK
   // =============================
@@ -428,6 +488,7 @@ for (const uid of usersToNotify) {
       where: {
         isDeleted: false
       },
+      include: this.taskChatInclude,
       orderBy: { createdAt: 'desc' },
       take: 50
     })
@@ -451,6 +512,7 @@ for (const uid of usersToNotify) {
         { projectId: { in: projectIds } }
       ]
     },
+    include: this.taskChatInclude,
     orderBy: { createdAt: 'desc' },
     take: 50
   })
@@ -1622,18 +1684,11 @@ async addComment(taskId: string, message: string, userId: string) {
   try {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
-      include: {
-        project: {
-          include: {
-            members: {
-              include: { user: true },
-            },
-          },
-        },
-      },
+      include: this.taskChatInclude,
     });
 
     if (!task) throw new Error("Task not found");
+    const chatUsers = await this.ensureTaskChatAccess(task, userId);
 
     if (
       task.status === "CONFIRMED" ||
@@ -1667,33 +1722,7 @@ async addComment(taskId: string, message: string, userId: string) {
 
     const baseUsers = new Set<string>();
 
-    if (task.assignedToId) baseUsers.add(task.assignedToId);
-    if (task.createdById) baseUsers.add(task.createdById);
-
-    // Project DH
-    if (task.project?.deliveryHeadId) {
-      baseUsers.add(task.project.deliveryHeadId);
-    }
-
-    // Project members
-    if (task.project?.members?.length) {
-      task.project.members.forEach((m) => {
-        if (m.userId) baseUsers.add(m.userId);
-      });
-    }
-
-    // Department DH
-    if (task.departmentId) {
-      const dhUsers = await this.prisma.user.findMany({
-        where: {
-          departmentId: task.departmentId,
-          role: "DELIVERY_HEAD",
-        },
-        select: { id: true },
-      });
-
-      dhUsers.forEach((u) => baseUsers.add(u.id));
-    }
+    chatUsers.forEach((user) => baseUsers.add(user.id));
 
     // =========================
     // 🔥 MENTIONS
@@ -1829,8 +1858,13 @@ if (existingComment) {
   }
 }
 async getComments(taskId: string, userId: string) {
-  // 🔥 mark as read when opening chat
- 
+  const task = await this.prisma.task.findUnique({
+    where: { id: taskId },
+    include: this.taskChatInclude,
+  });
+
+  if (!task) throw new Error("Task not found");
+  await this.ensureTaskChatAccess(task, userId);
 
   return this.prisma.taskComment.findMany({
     where: { taskId },
@@ -1885,55 +1919,17 @@ private async generateTicketId(
   return `${prefix}-${code}-${date}-${sequence}`;
 }
 
-async getTaskParticipants(taskId: string) {
+async getTaskParticipants(taskId: string, userId: string) {
   try {
     const task: any = await this.prisma.task.findUnique({
       where: { id: taskId },
-      include: {
-        assignedTo: true,
-        createdBy: true,
-        project: {
-          include: {
-            deliveryHead: true, // ✅ IMPORTANT
-            members: {
-              include: {
-                user: true,
-              },
-            },
-          },
-        },
-      },
+      include: this.taskChatInclude,
     });
 
     if (!task) throw new Error("Task not found");
 
-    const users: any[] = [];
-
-    // ✅ Assigned
-    if (task.assignedTo) users.push(task.assignedTo);
-
-    // ✅ Creator
-    if (task.createdBy) users.push(task.createdBy);
-
-    // ✅ Project Members (PM + TM)
-    if (task.project?.members?.length) {
-      task.project.members.forEach((m) => {
-        if (m.user) users.push(m.user);
-      });
-    }
-
-    // ✅ DELIVERY HEAD (DIRECT)
-    if (task.project?.deliveryHead) {
-      users.push(task.project.deliveryHead);
-    }
-
-    // =========================
-    // 🔥 REMOVE DUPLICATES
-    // =========================
-
-    const uniqueUsers = Array.from(
-      new Map(users.map((u) => [u.id, u])).values()
-    );
+    await this.ensureTaskChatAccess(task, userId);
+    const uniqueUsers = await this.getTaskChatUsers(task);
 
     return uniqueUsers.map((u) => ({
       id: u.id,
@@ -1968,6 +1964,14 @@ async getTaskById(id: string) {
   return task;
 }
 async markChatAsRead(taskId: string, userId: string) {
+  const task = await this.prisma.task.findUnique({
+    where: { id: taskId },
+    include: this.taskChatInclude,
+  });
+
+  if (!task) throw new Error("Task not found");
+  await this.ensureTaskChatAccess(task, userId);
+
   const comments = await this.prisma.taskComment.findMany({
     where: { taskId },
   });

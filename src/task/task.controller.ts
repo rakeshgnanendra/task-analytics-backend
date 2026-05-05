@@ -269,12 +269,12 @@ addComment(
 @UseGuards(JwtAuthGuard)
 @Get(':taskId/comments')
 getComments(@Param('taskId') taskId: string, @Req() req) {
-  return this.taskService.getComments(taskId,req.user.id);
+  return this.taskService.getComments(taskId, req.user.userId || req.user.id);
 }
 @UseGuards(JwtAuthGuard)
 @Get(':taskId/participants')
-getParticipants(@Param('taskId') taskId: string) {
-  return this.taskService.getTaskParticipants(taskId);
+getParticipants(@Param('taskId') taskId: string, @Req() req) {
+  return this.taskService.getTaskParticipants(taskId, req.user.userId || req.user.id);
 }
 @UseGuards(JwtAuthGuard)
 @Get(':id')
@@ -284,6 +284,6 @@ getTaskById(@Param('id') id: string) {
 @UseGuards(JwtAuthGuard)
 @Post("chat/:taskId/mark-read")
 markChatAsRead(@Param("taskId") taskId: string, @Req() req) {
-  return this.taskService.markChatAsRead(taskId, req.user.id);
+  return this.taskService.markChatAsRead(taskId, req.user.userId || req.user.id);
 }
 }
