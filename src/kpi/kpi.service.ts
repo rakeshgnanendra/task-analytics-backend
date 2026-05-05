@@ -133,10 +133,17 @@ export class KpiService {
     this.assertCanManageKpi(user)
 
     const items = body.items || []
+    const name = String(body.name || '').trim()
+    const designation = String(body.designation || '').trim() || null
+    const departmentId = body.departmentId || null
     const totalWeight = items.reduce(
       (sum: number, item: any) => sum + Number(item.weight || 0),
       0,
     )
+
+    if (!name) {
+      throw new BadRequestException('KPI template name is required')
+    }
 
     if (!items.length) {
       throw new BadRequestException('At least one KPI item is required')
@@ -146,12 +153,74 @@ export class KpiService {
       throw new BadRequestException('KPI template weights must total 100')
     }
 
+    const existingTemplate = await this.prisma.kpiTemplate.findFirst({
+      where: {
+        name,
+        role: body.role as GlobalRole,
+        designation,
+        departmentId,
+      },
+      include: { items: true, department: true },
+      orderBy: { updatedAt: 'desc' },
+    })
+
+    if (existingTemplate) {
+      await this.prisma.kpiTemplate.update({
+        where: { id: existingTemplate.id },
+        data: {
+          isActive: true,
+          createdById: existingTemplate.createdById || user.userId || user.id,
+        },
+      })
+
+      for (const [index, item] of items.entries()) {
+        const existingItem = existingTemplate.items.find(
+          (templateItem) =>
+            templateItem.category.trim().toLowerCase() ===
+            String(item.category || '').trim().toLowerCase(),
+        )
+
+        if (existingItem) {
+          await this.prisma.kpiTemplateItem.update({
+            where: { id: existingItem.id },
+            data: {
+              goal: item.goal,
+              measure: item.measure || null,
+              weight: Number(item.weight),
+              taskLinked: item.taskLinked !== false,
+              sortOrder: item.sortOrder ?? index,
+            },
+          })
+        } else {
+          await this.prisma.kpiTemplateItem.create({
+            data: {
+              templateId: existingTemplate.id,
+              category: item.category,
+              goal: item.goal,
+              measure: item.measure || null,
+              weight: Number(item.weight),
+              taskLinked: item.taskLinked !== false,
+              sortOrder: item.sortOrder ?? index,
+            },
+          })
+        }
+      }
+
+      return this.prisma.kpiTemplate.findUnique({
+        where: { id: existingTemplate.id },
+        include: {
+          department: true,
+          items: { orderBy: { sortOrder: 'asc' } },
+        },
+      })
+    }
+
     return this.prisma.kpiTemplate.create({
       data: {
-        name: body.name,
+        name,
         role: body.role as GlobalRole,
-        designation: body.designation || null,
-        departmentId: body.departmentId || null,
+        designation,
+        departmentId,
         createdById: user.userId || user.id,
         items: {
           create: items.map((item: any, index: number) => ({
@@ -168,8 +237,8 @@ export class KpiService {
     })
   }
 
-  getTemplates(query: any) {
-    return this.prisma.kpiTemplate.findMany({
+  async getTemplates(query: any) {
+    const templates = await this.prisma.kpiTemplate.findMany({
       where: {
         isActive: true,
         role: query.role || undefined,
@@ -182,7 +251,22 @@ export class KpiService {
           orderBy: { sortOrder: 'asc' },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    })
+
+    const seen = new Set<string>()
+
+    return templates.filter((template) => {
+      const key = [
+        template.name.trim().toLowerCase(),
+        template.role || '',
+        template.designation || '',
+        template.departmentId || '',
+      ].join('|')
+
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
     })
   }
 
