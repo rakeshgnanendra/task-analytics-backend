@@ -113,9 +113,16 @@ async createTask(
   priority: Priority,
   files?: Express.Multer.File[],
   notifyEmployeeEmail?: string,
+  kpi?: {
+    isKpiLinked?: string | boolean
+    kpiCategory?: string
+    kpiWeight?: string
+    kpiAssignmentItemId?: string
+  },
 ) {
   const extraNotifyEmail = notifyEmployeeEmail?.trim()
   const isSelfCreated = creatorId === assignedToId
+  const isKpiLinked = kpi?.isKpiLinked === true || kpi?.isKpiLinked === 'true'
 
   if (extraNotifyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(extraNotifyEmail)) {
     throw new BadRequestException('Notify employee email is invalid')
@@ -139,6 +146,14 @@ async createTask(
     dueDate,
     priority,
     status: isSelfCreated ? TaskStatus.PENDING_APPROVAL : TaskStatus.CREATED,
+    isKpiLinked,
+    kpiCategory: isKpiLinked ? kpi?.kpiCategory || null : null,
+    kpiWeight: isKpiLinked ? Number(kpi?.kpiWeight || 1) : 1,
+    kpiAssignmentItemId: isKpiLinked ? kpi?.kpiAssignmentItemId || null : null,
+  }
+
+  if (isKpiLinked && !taskData.kpiAssignmentItemId) {
+    throw new BadRequestException('KPI assignment item is required for KPI linked tasks')
   }
 
   // =========================

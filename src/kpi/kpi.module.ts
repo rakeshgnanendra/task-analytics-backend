@@ -1,0 +1,12 @@
+import { Module } from '@nestjs/common'
+import { KpiController } from './kpi.controller'
+import { KpiService } from './kpi.service'
+import { PrismaModule } from 'src/prisma/prisma.module'
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [KpiController],
+  providers: [KpiService],
+  exports: [KpiService],
+})
+export class KpiModule {}

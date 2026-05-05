@@ -56,6 +56,10 @@ async createTask(
   @Body("dueDate") dueDate: string,
   @Body("priority") priority: Priority,
   @Body("notifyEmployeeEmail") notifyEmployeeEmail: string,
+  @Body("isKpiLinked") isKpiLinked: string,
+  @Body("kpiCategory") kpiCategory: string,
+  @Body("kpiWeight") kpiWeight: string,
+  @Body("kpiAssignmentItemId") kpiAssignmentItemId: string,
 ) {
 
   return this.taskService.createTask(
@@ -69,7 +73,13 @@ async createTask(
     new Date(dueDate),        // 8
     priority,                 // 9
     files,                    // 10
-    notifyEmployeeEmail       // 11
+    notifyEmployeeEmail,      // 11
+    {
+      isKpiLinked,
+      kpiCategory,
+      kpiWeight,
+      kpiAssignmentItemId,
+    }
   )
 
 }

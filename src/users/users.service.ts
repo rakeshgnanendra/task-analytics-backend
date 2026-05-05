@@ -13,9 +13,9 @@ export class UsersService {
       // Can create any role
     } 
     else if (creatorRole === 'DELIVERY_HEAD') {
-      if (dto.role !== GlobalRole.EMPLOYEE) {
+      if (![GlobalRole.EMPLOYEE, GlobalRole.HR].includes(dto.role)) {
         throw new ForbiddenException(
-          'Delivery Head can only create normal users',
+          'Delivery Head can only create Employee or HR users',
         )
       }
     } 
@@ -66,6 +66,7 @@ if (!department) {
         email: dto.email,
         password: hashedPassword,
         role: dto.role,
+        designation: dto.designation || null,
         isActive: true,
         departmentId: department.id,
       },
@@ -132,6 +133,7 @@ async getUsers(query: any, requesterRole: string) {
     username: true,
     email: true,
     role: true,
+    designation: true,
     isActive: true,
     department: {
       select: { id: true, name: true },

@@ -40,6 +40,7 @@ export class AuthService {
       lastName: user.lastName,
       email: user.email,
       role: user.role,
+      designation: user.designation,
       departmentId: user.departmentId,
     },
     mustChangePassword: user.mustChangePassword,

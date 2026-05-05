@@ -36,38 +36,45 @@ model FileDownloadLog {
 }
 
 model User {
-  id                   String            @id @default(uuid())
-  email                String            @unique
-  password             String
-  firstName            String
-  lastName             String
-  username             String            @unique
-  role                 GlobalRole        @default(EMPLOYEE)
-  isActive             Boolean           @default(true)
-  departmentId         String
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-  mustChangePassword Boolean @default(true)
-  activityLogs         ActivityLog[]
-  downloads            FileDownloadLog[]
-  deliveryHeadProjects Project[]         @relation("DeliveryHeadProjects")
-  projectLinks         ProjectMember[]
-  assignedTasks        Task[]            @relation("AssignedTasks")
-  createdTasks         Task[]            @relation("CreatedTasks")
-  uploadedFiles        TaskFile[]
-  department           Department        @relation(fields: [departmentId], references: [id])
-comments TaskComment[]
-chatSeen TaskChatSeen[]
-notification Notification[]
+  id                    String            @id @default(uuid())
+  email                 String            @unique
+  password              String
+  firstName             String
+  lastName              String
+  username              String            @unique
+  role                  GlobalRole        @default(EMPLOYEE)
+  designation           String?
+  isActive              Boolean           @default(true)
+  departmentId          String
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  mustChangePassword    Boolean           @default(true)
+  activityLogs          ActivityLog[]
+  downloads             FileDownloadLog[]
+  deliveryHeadProjects  Project[]         @relation("DeliveryHeadProjects")
+  projectLinks          ProjectMember[]
+  assignedTasks         Task[]            @relation("AssignedTasks")
+  createdTasks          Task[]            @relation("CreatedTasks")
+  uploadedFiles         TaskFile[]
+  department            Department        @relation(fields: [departmentId], references: [id])
+  comments              TaskComment[]
+  chatSeen              TaskChatSeen[]
+  notification          Notification[]
+  createdKpiTemplates   KpiTemplate[]     @relation("KpiTemplateCreator")
+  kpiAssignments        KpiAssignment[]   @relation("KpiAssignmentEmployee")
+  managedKpiAssignments KpiAssignment[]   @relation("KpiAssignmentManager")
+  kpiFeedbacks          KpiFeedback[]     @relation("KpiFeedbackReviewer")
+
   @@index([departmentId])
 }
 
 model Department {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  tasks     Task[]
-  users     User[]
+  id           String        @id @default(uuid())
+  name         String        @unique
+  createdAt    DateTime      @default(now())
+  tasks        Task[]
+  users        User[]
+  kpiTemplates KpiTemplate[]
 }
 
 model Project {
@@ -95,6 +102,7 @@ model ProjectMember {
   @@unique([userId, projectId])
   @@index([projectId])
 }
+
 model TaskComment {
   id        String   @id @default(uuid())
   message   String
@@ -102,12 +110,13 @@ model TaskComment {
   userId    String
   createdAt DateTime @default(now())
 
-  task      Task     @relation(fields: [taskId], references: [id])
+  task        Task     @relation(fields: [taskId], references: [id])
   deliveredTo String[] @default([])
   seenBy      String[] @default([])
 
-  user      User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 }
+
 model TaskChatSeen {
   id       String   @id @default(uuid())
   userId   String
@@ -119,56 +128,188 @@ model TaskChatSeen {
 
   @@unique([userId, taskId]) // 🔥 important
 }
+
 model Task {
-  id           String      @id @default(uuid())
-  ticketId String? @unique
-  title        String
-  description  String?
-  dueDate      DateTime
-  priority     Priority    @default(MEDIUM)
-  status       TaskStatus  @default(CREATED)
-  
-timeSpentMinutes Int?
-completionComment String?
-completionAttachments Json?
-  startedAt    DateTime?
-  completedAt  DateTime?
-  confirmedAt  DateTime?
-  isLocked     Boolean     @default(false)
-  projectId    String?
-  departmentId String?
-  assignedToId String
-  createdById  String
-  isDeleted    Boolean     @default(false)
-  deletedAt    DateTime?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  assignedTo   User        @relation("AssignedTasks", fields: [assignedToId], references: [id])
-  createdBy    User        @relation("CreatedTasks", fields: [createdById], references: [id])
-  department   Department? @relation(fields: [departmentId], references: [id])
-  project      Project?    @relation(fields: [projectId], references: [id])
-  files        TaskFile[]
-comments TaskComment[]
-chatSeen TaskChatSeen[]
+  id          String     @id @default(uuid())
+  ticketId    String?    @unique
+  title       String
+  description String?
+  dueDate     DateTime
+  priority    Priority   @default(MEDIUM)
+  status      TaskStatus @default(CREATED)
+
+  timeSpentMinutes      Int?
+  completionComment     String?
+  completionAttachments Json?
+  isKpiLinked           Boolean            @default(false)
+  kpiCategory           String?
+  kpiWeight             Float              @default(1)
+  kpiAssignmentItemId   String?
+  startedAt             DateTime?
+  completedAt           DateTime?
+  confirmedAt           DateTime?
+  isLocked              Boolean            @default(false)
+  projectId             String?
+  departmentId          String?
+  assignedToId          String
+  createdById           String
+  isDeleted             Boolean            @default(false)
+  deletedAt             DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  assignedTo            User               @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  createdBy             User               @relation("CreatedTasks", fields: [createdById], references: [id])
+  department            Department?        @relation(fields: [departmentId], references: [id])
+  project               Project?           @relation(fields: [projectId], references: [id])
+  files                 TaskFile[]
+  comments              TaskComment[]
+  chatSeen              TaskChatSeen[]
+  kpiAssignmentItem     KpiAssignmentItem? @relation(fields: [kpiAssignmentItemId], references: [id])
+
   @@index([projectId])
   @@index([departmentId])
   @@index([assignedToId])
+  @@index([kpiAssignmentItemId])
   @@index([status])
   @@index([dueDate])
 }
+
+model KpiCycle {
+  id                 String          @id @default(uuid())
+  name               String
+  financialYear      String
+  startDate          DateTime
+  endDate            DateTime
+  managerReviewStart DateTime?
+  managerReviewEnd   DateTime?
+  status             KpiCycleStatus  @default(DRAFT)
+  releaseToEmployees Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  assignments        KpiAssignment[]
+
+  @@unique([financialYear])
+  @@index([status])
+}
+
+model KpiTemplate {
+  id           String            @id @default(uuid())
+  name         String
+  role         GlobalRole?
+  designation  String?
+  departmentId String?
+  createdById  String?
+  isActive     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  department   Department?       @relation(fields: [departmentId], references: [id])
+  createdBy    User?             @relation("KpiTemplateCreator", fields: [createdById], references: [id])
+  items        KpiTemplateItem[]
+  assignments  KpiAssignment[]
+
+  @@index([role])
+  @@index([designation])
+  @@index([departmentId])
+}
+
+model KpiTemplateItem {
+  id              String              @id @default(uuid())
+  templateId      String
+  category        String
+  goal            String
+  measure         String?
+  weight          Float
+  taskLinked      Boolean             @default(true)
+  sortOrder       Int                 @default(0)
+  template        KpiTemplate         @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  assignmentItems KpiAssignmentItem[]
+
+  @@index([templateId])
+}
+
+model KpiAssignment {
+  id                   String              @id @default(uuid())
+  cycleId              String
+  employeeId           String
+  templateId           String?
+  managerId            String?
+  status               KpiAssignmentStatus @default(DRAFT)
+  autoScore            Float               @default(0)
+  managerAdjustment    Float               @default(0)
+  finalScore           Float               @default(0)
+  managerFinalComments String?
+  employeeComments     String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  cycle                KpiCycle            @relation(fields: [cycleId], references: [id])
+  employee             User                @relation("KpiAssignmentEmployee", fields: [employeeId], references: [id])
+  template             KpiTemplate?        @relation(fields: [templateId], references: [id])
+  manager              User?               @relation("KpiAssignmentManager", fields: [managerId], references: [id])
+  items                KpiAssignmentItem[]
+  feedbacks            KpiFeedback[]
+
+  @@unique([cycleId, employeeId])
+  @@index([employeeId])
+  @@index([managerId])
+  @@index([status])
+}
+
+model KpiAssignmentItem {
+  id                String           @id @default(uuid())
+  assignmentId      String
+  templateItemId    String?
+  category          String
+  goal              String
+  measure           String?
+  weight            Float
+  taskLinked        Boolean          @default(true)
+  completionScore   Float            @default(0)
+  onTimeScore       Float            @default(0)
+  qualityScore      Float            @default(0)
+  productivityScore Float            @default(0)
+  currentScore      Float            @default(0)
+  managerScore      Float?
+  managerComments   String?
+  assignment        KpiAssignment    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  templateItem      KpiTemplateItem? @relation(fields: [templateItemId], references: [id])
+  tasks             Task[]
+
+  @@index([assignmentId])
+  @@index([templateItemId])
+  @@index([category])
+}
+
+model KpiFeedback {
+  id           String         @id @default(uuid())
+  assignmentId String
+  reviewerId   String
+  phase        KpiReviewPhase
+  rating       String?
+  comment      String
+  adjustment   Float          @default(0)
+  createdAt    DateTime       @default(now())
+  assignment   KpiAssignment  @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  reviewer     User           @relation("KpiFeedbackReviewer", fields: [reviewerId], references: [id])
+
+  @@index([assignmentId])
+  @@index([reviewerId])
+  @@index([phase])
+}
+
 model Notification {
-  id        String   @id @default(uuid())
-  userId    String
-  type      String   // CHAT | MENTION | ASSIGNED | STATUS
-  message   String
-  taskId    String?
+  id          String   @id @default(uuid())
+  userId      String
+  type        String // CHAT | MENTION | ASSIGNED | STATUS
+  message     String
+  taskId      String?
   referenceId String?
-  isRead    Boolean  @default(false)
-  isDeleted Boolean  @default(false)
-  createdAt DateTime @default(now())
+  isRead      Boolean  @default(false)
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
 }
+
 model ActivityLog {
   id          String   @id @default(uuid())
   action      String
@@ -187,8 +328,30 @@ model ActivityLog {
 enum GlobalRole {
   SUPER_ADMIN
   DELIVERY_HEAD
+  HR
   USER
   EMPLOYEE
+}
+
+enum KpiCycleStatus {
+  DRAFT
+  ACTIVE
+  REVIEW_OPEN
+  CLOSED
+}
+
+enum KpiAssignmentStatus {
+  DRAFT
+  ASSIGNED
+  REVIEW_OPEN
+  REVIEWED
+  FINALIZED
+}
+
+enum KpiReviewPhase {
+  PLANNING
+  MID_YEAR
+  FINAL
 }
 
 enum ProjectRole {

@@ -16,8 +16,9 @@ import { ChatModule } from './chat/chat.module';
 import { NotificationModule } from './notification/notification.module';
 import { SocketModule } from './socket/socket.module';
 import { EmailService } from './email/email.service';
+import { KpiModule } from './kpi/kpi.module';
 @Module({
-  imports: [AuthModule, ProjectModule, TaskModule , DashboardModule, UsersModule, PrismaModule, LogsModule, DepartmentModule, ReportsModule, ChatModule, NotificationModule,SocketModule],
+  imports: [AuthModule, ProjectModule, TaskModule , DashboardModule, UsersModule, PrismaModule, LogsModule, DepartmentModule, ReportsModule, ChatModule, NotificationModule,SocketModule, KpiModule],
   controllers: [AppController],
   providers: [AppService,EmailService],
 })
