@@ -20,6 +20,17 @@ export class ChatService {
 
     if (!user) return []
 
+    if (user.role === 'DELIVERY_HEAD') {
+      const tasks = await this.prisma.task.findMany({
+        where: {
+          isDeleted: false,
+        },
+        select: { id: true },
+      })
+
+      return tasks.map((task) => task.id)
+    }
+
     const projectIds = [
       ...user.projectLinks.map((project) => project.projectId),
       ...user.deliveryHeadProjects.map((project) => project.id),
@@ -32,9 +43,6 @@ export class ChatService {
           { assignedToId: userId },
           { createdById: userId },
           { projectId: { in: projectIds } },
-          ...(user.role === 'DELIVERY_HEAD'
-            ? [{ departmentId: user.departmentId }]
-            : []),
         ],
       },
       select: { id: true },

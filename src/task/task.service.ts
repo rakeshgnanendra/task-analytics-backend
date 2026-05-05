@@ -53,6 +53,17 @@ export class TaskService {
       users.push(task.project.deliveryHead)
     }
 
+    if (task.projectId) {
+      const deliveryHeads = await this.prisma.user.findMany({
+        where: {
+          role: 'DELIVERY_HEAD',
+          isActive: true,
+        },
+      })
+
+      users.push(...deliveryHeads)
+    }
+
     if (task.project?.members?.length) {
       task.project.members.forEach((member) => {
         if (member.user) users.push(member.user)
