@@ -162,6 +162,33 @@ export class KpiService {
     })
   }
 
+  async getKpiPeople(user: any) {
+    this.assertCanManageKpi(user)
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: {
+          in: [GlobalRole.EMPLOYEE, GlobalRole.HR, GlobalRole.DELIVERY_HEAD],
+        },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        designation: true,
+        department: {
+          select: { id: true, name: true },
+        },
+      },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+    })
+
+    return { data: users }
+  }
+
   async assignTemplate(body: any, user: any) {
     this.assertCanManageKpi(user)
 

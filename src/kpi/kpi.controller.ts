@@ -47,6 +47,11 @@ export class KpiController {
     return this.kpiService.getTemplates(query)
   }
 
+  @Get('people')
+  getKpiPeople(@Req() req: any) {
+    return this.kpiService.getKpiPeople(req.user)
+  }
+
   @Post('assignments')
   assignTemplate(@Body() body: any, @Req() req: any) {
     return this.kpiService.assignTemplate(body, req.user)
