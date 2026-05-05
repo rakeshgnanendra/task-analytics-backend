@@ -159,6 +159,25 @@ export class KpiService {
   async assignTemplate(body: any, user: any) {
     this.assertCanManageKpi(user)
 
+    const existingAssignment = await this.prisma.kpiAssignment.findUnique({
+      where: {
+        cycleId_employeeId: {
+          cycleId: body.cycleId,
+          employeeId: body.employeeId,
+        },
+      },
+      include: {
+        employee: { select: { firstName: true, lastName: true } },
+        cycle: true,
+      },
+    })
+
+    if (existingAssignment) {
+      throw new BadRequestException(
+        `${existingAssignment.employee.firstName} ${existingAssignment.employee.lastName} already has KPI assigned for ${existingAssignment.cycle.financialYear}`,
+      )
+    }
+
     const template = await this.prisma.kpiTemplate.findUnique({
       where: { id: body.templateId },
       include: { items: { orderBy: { sortOrder: 'asc' } } },
