@@ -599,7 +599,7 @@ export class KpiService {
 
   async generateKpiPdfReport(id: string, user: any, res: Response) {
     const { assignment, summary } = await this.getKpiReport(id, user)
-    const doc = new PDFDocument({ margin: 40 })
+    const doc = new PDFDocument({ margin: 42, size: 'A4' })
     const today = new Date().toISOString().split('T')[0]
     const fileName = `KPI_${summary.employeeName.replace(/\s+/g, '_')}_${summary.financialYear.replace(/\s+/g, '_')}_${today}.pdf`
 
@@ -608,131 +608,256 @@ export class KpiService {
     doc.pipe(res)
 
     const logoPath = path.join(process.cwd(), 'public', 'DP_logo.png')
+    const pageWidth = doc.page.width
+    const left = 42
+    const right = pageWidth - 42
+    const contentWidth = right - left
+    const colors = {
+      indigo: '#4f46e5',
+      slate: '#111827',
+      muted: '#6b7280',
+      line: '#e5e7eb',
+      soft: '#f8fafc',
+      green: '#16a34a',
+    }
+    const formatDate = (value?: Date | string | null) =>
+      value ? new Date(value).toLocaleDateString('en-IN') : '-'
+    const trim = (text: string, max = 60) =>
+      text && text.length > max ? `${text.substring(0, max)}...` : text || '-'
+    const ensureSpace = (height: number) => {
+      if (doc.y + height > doc.page.height - 58) {
+        doc.addPage()
+        doc.y = 42
+      }
+    }
+    const sectionTitle = (title: string) => {
+      ensureSpace(30)
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(12)
+        .fillColor(colors.slate)
+        .text(title, left, doc.y)
+      doc.moveDown(0.45)
+      doc
+        .moveTo(left, doc.y)
+        .lineTo(right, doc.y)
+        .strokeColor(colors.line)
+        .stroke()
+      doc.moveDown(0.8)
+    }
+    const drawInfoCard = (
+      x: number,
+      y: number,
+      width: number,
+      label: string,
+      value: string,
+      accent = colors.slate,
+    ) => {
+      doc.roundedRect(x, y, width, 54, 6).strokeColor(colors.line).stroke()
+      doc
+        .font('Helvetica')
+        .fontSize(8)
+        .fillColor(colors.muted)
+        .text(label, x + 10, y + 10, { width: width - 20, lineBreak: false })
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(14)
+        .fillColor(accent)
+        .text(value, x + 10, y + 28, { width: width - 20, lineBreak: false })
+    }
 
-    doc.font('Helvetica-Bold').fontSize(12).text('DIGITAL PERSONAS PVT LTD')
-    doc.text('KPI Performance Report')
+    doc.rect(0, 0, pageWidth, 88).fill(colors.slate)
+    doc.fillColor('white')
+    doc.font('Helvetica-Bold').fontSize(12).text('DIGITAL PERSONAS PVT LTD', left, 28)
+    doc
+      .font('Helvetica')
+      .fontSize(9)
+      .text('KPI Performance Report', left, 48)
     try {
-      doc.image(logoPath, 450, 40, { width: 100 })
+      doc.image(logoPath, right - 88, 24, { width: 88 })
     } catch {
       // Logo is optional in local/dev environments.
     }
 
-    doc.moveDown()
-    doc.moveTo(40, doc.y).lineTo(550, doc.y).stroke()
-    doc.moveDown()
+    doc.y = 112
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(20)
+      .fillColor(colors.slate)
+      .text(summary.employeeName, left, doc.y)
+    doc
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor(colors.muted)
+      .text(`${summary.financialYear} appraisal summary`, left, doc.y + 3)
+    doc.moveDown(1.6)
 
-    doc.font('Helvetica-Bold').fontSize(16).text(summary.employeeName, {
-      align: 'center',
-    })
-    doc.font('Helvetica').fontSize(10).text(summary.financialYear, {
-      align: 'center',
-    })
-    doc.moveDown(1.5)
+    const cardGap = 12
+    const cardWidth = (contentWidth - cardGap * 3) / 4
+    const cardY = doc.y
+    drawInfoCard(
+      left,
+      cardY,
+      cardWidth,
+      'Final Score',
+      String(Math.round(summary.finalScore || 0)),
+      colors.indigo,
+    )
+    drawInfoCard(
+      left + cardWidth + cardGap,
+      cardY,
+      cardWidth,
+      'Auto Score',
+      String(Math.round(summary.autoScore || 0)),
+    )
+    drawInfoCard(
+      left + (cardWidth + cardGap) * 2,
+      cardY,
+      cardWidth,
+      'Rating',
+      summary.rating || '-',
+    )
+    drawInfoCard(
+      left + (cardWidth + cardGap) * 3,
+      cardY,
+      cardWidth,
+      'Status',
+      summary.reviewStatus || '-',
+      summary.reviewStatus === 'FINALIZED' ? colors.green : colors.slate,
+    )
+    doc.y = cardY + 76
 
-    const info = [
+    sectionTitle('Employee Details')
+    const detailRows = [
       ['Employee', summary.employeeName],
       ['Designation', assignment.employee.designation || assignment.employee.role],
       ['Department', assignment.employee.department?.name || '-'],
       ['Manager', summary.managerName],
-      ['Status', summary.reviewStatus],
-      ['Rating', summary.rating],
-      ['Auto Score', String(Math.round(summary.autoScore || 0))],
-      ['Final Score', String(Math.round(summary.finalScore || 0))],
+      ['Cycle Start', formatDate(assignment.cycle.startDate)],
+      ['Cycle End', formatDate(assignment.cycle.endDate)],
     ]
-
-    doc.font('Helvetica-Bold').fontSize(12).text('Summary')
-    doc.font('Helvetica').fontSize(10)
-    info.forEach(([label, value]) => {
-      doc.text(`${label}: ${value}`)
+    const detailY = doc.y
+    const detailColWidth = contentWidth / 3
+    detailRows.forEach(([label, value], index) => {
+      const x = left + (index % 3) * detailColWidth
+      const y = detailY + Math.floor(index / 3) * 36
+      doc
+        .font('Helvetica')
+        .fontSize(8)
+        .fillColor(colors.muted)
+        .text(label, x, y, { width: detailColWidth - 12 })
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(10)
+        .fillColor(colors.slate)
+        .text(String(value), x, y + 13, {
+          width: detailColWidth - 12,
+          lineBreak: false,
+        })
     })
+    doc.y = detailY + 82
 
-    doc.moveDown()
-    doc.font('Helvetica-Bold').fontSize(12).text('KPI Breakdown')
-    doc.moveDown(0.5)
-
-    const col0 = 40
-    const col1 = 200
-    const col2 = 260
-    const col3 = 330
-    const col4 = 410
-    let y = doc.y
-    const rowHeight = 36
-    const bottomMargin = 60
+    sectionTitle('KPI Breakdown')
 
     const drawHeader = () => {
-      doc.font('Helvetica-Bold').fontSize(9)
-      doc.rect(col0, y, 160, 22).stroke()
-      doc.text('Category', col0 + 5, y + 7, { width: 150, lineBreak: false })
-      doc.rect(col1, y, 60, 22).stroke()
-      doc.text('Weight', col1 + 5, y + 7)
-      doc.rect(col2, y, 70, 22).stroke()
-      doc.text('Score', col2 + 5, y + 7)
-      doc.rect(col3, y, 80, 22).stroke()
-      doc.text('Tasks', col3 + 5, y + 7)
-      doc.rect(col4, y, 140, 22).stroke()
-      doc.text('Comment', col4 + 5, y + 7)
-      y += 22
-      doc.font('Helvetica').fontSize(8)
+      const y = doc.y
+      doc.rect(left, y, contentWidth, 24).fill(colors.indigo)
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('white')
+      doc.text('Category', left + 8, y + 8, { width: 150, lineBreak: false })
+      doc.text('Weight', left + 178, y + 8)
+      doc.text('Score', left + 236, y + 8)
+      doc.text('Tasks', left + 294, y + 8)
+      doc.text('Manager Comment', left + 350, y + 8)
+      doc.y = y + 24
+      doc.fillColor(colors.slate)
     }
 
     drawHeader()
 
-    const trim = (text: string, max = 45) =>
-      text && text.length > max ? `${text.substring(0, max)}...` : text || '-'
-
     assignment.items.forEach((item, index) => {
-      if (y + rowHeight > doc.page.height - bottomMargin) {
-        doc.addPage()
-        y = 60
-        drawHeader()
-      }
+      const rowHeight = 48
+      ensureSpace(rowHeight + 10)
+      const y = doc.y
 
       if (index % 2 === 0) {
-        doc.rect(col0, y, 510, rowHeight).fill('#f6f7fb')
-        doc.fillColor('black')
+        doc.rect(left, y, contentWidth, rowHeight).fill(colors.soft)
       }
+      doc.rect(left, y, contentWidth, rowHeight).strokeColor(colors.line).stroke()
 
-      doc.rect(col0, y, 160, rowHeight).stroke()
-      doc.text(trim(item.category, 28), col0 + 5, y + 8, {
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(colors.slate)
+      doc.text(trim(item.category, 32), left + 8, y + 8, {
         width: 150,
         lineBreak: false,
       })
-      doc.rect(col1, y, 60, rowHeight).stroke()
-      doc.text(`${item.weight}%`, col1 + 5, y + 8)
-      doc.rect(col2, y, 70, rowHeight).stroke()
-      doc.text(`${Math.round(item.currentScore || 0)}`, col2 + 5, y + 8)
-      doc.rect(col3, y, 80, rowHeight).stroke()
-      doc.text(`${item.tasks?.length || 0}`, col3 + 5, y + 8)
-      doc.rect(col4, y, 140, rowHeight).stroke()
-      doc.text(trim(item.managerComments || '-', 35), col4 + 5, y + 8, {
-        width: 130,
-        lineBreak: false,
-      })
-
-      y += rowHeight
+      doc
+        .font('Helvetica')
+        .fontSize(7.5)
+        .fillColor(colors.muted)
+        .text(trim(item.goal || '', 48), left + 8, y + 22, {
+          width: 150,
+          lineBreak: false,
+        })
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(colors.slate)
+      doc.text(`${item.weight}%`, left + 178, y + 15, { width: 44 })
+      doc.fillColor(colors.indigo).text(
+        `${Math.round(item.currentScore || 0)}`,
+        left + 236,
+        y + 15,
+        { width: 40 },
+      )
+      doc.fillColor(colors.slate).text(`${item.tasks?.length || 0}`, left + 294, y + 15)
+      doc
+        .font('Helvetica')
+        .fontSize(8)
+        .fillColor(colors.slate)
+        .text(trim(item.managerComments || '-', 72), left + 350, y + 10, {
+          width: contentWidth - 360,
+          lineBreak: false,
+        })
+      doc.y = y + rowHeight
     })
 
-    doc.y = y + 16
-    doc.font('Helvetica-Bold').fontSize(12).text('Manager Feedback')
-    doc.font('Helvetica').fontSize(10).text(summary.managerFinalComments || '-')
-    doc.moveDown()
-    doc.font('Helvetica-Bold').fontSize(12).text('Employee Acknowledgement')
-    doc.font('Helvetica').fontSize(10)
-    doc.text(
-      summary.employeeAcknowledgedAt
-        ? `Acknowledged on ${new Date(
-            summary.employeeAcknowledgedAt,
-          ).toLocaleDateString('en-IN')}`
-        : 'Pending acknowledgement',
-    )
-    doc.text(summary.employeeAcknowledgementComment || '-')
+    doc.moveDown(1.2)
+    sectionTitle('Manager Feedback')
+    doc
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor(colors.slate)
+      .text(summary.managerFinalComments || '-', left, doc.y, {
+        width: contentWidth,
+        lineGap: 3,
+      })
 
-    doc.moveDown(2)
+    doc.moveDown(1.2)
+    sectionTitle('Employee Acknowledgement')
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(10)
+      .fillColor(summary.employeeAcknowledgedAt ? colors.green : colors.muted)
+      .text(
+        summary.employeeAcknowledgedAt
+          ? `Acknowledged on ${formatDate(summary.employeeAcknowledgedAt)}`
+          : 'Pending acknowledgement',
+        left,
+        doc.y,
+      )
+    doc.moveDown(0.4)
+    doc
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor(colors.slate)
+      .text(summary.employeeAcknowledgementComment || '-', left, doc.y, {
+        width: contentWidth,
+        lineGap: 3,
+      })
+
+    const footerY = doc.page.height - 42
     doc
       .font('Helvetica-Oblique')
-      .fontSize(9)
-      .fillColor('gray')
-      .text('Generated by Task Analytics System', 0, doc.y, {
+      .fontSize(8)
+      .fillColor(colors.muted)
+      .text(`Generated by Task Analytics System on ${formatDate(new Date())}`, left, footerY, {
+        width: contentWidth,
         align: 'center',
       })
 
