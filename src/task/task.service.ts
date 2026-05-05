@@ -33,6 +33,16 @@ export class TaskService {
     return dueDate
   }
 
+  private isManagerOnlyKpiCategory(category?: string | null) {
+    return ['code quality', 'documentation'].includes(
+      String(category || '').trim().toLowerCase(),
+    )
+  }
+
+  private isTaskLinkedKpiItem(item: any) {
+    return item.taskLinked && !this.isManagerOnlyKpiCategory(item.category)
+  }
+
   private async recalculateTaskKpi(task: any) {
     if (!task?.kpiAssignmentItemId) return
 
@@ -125,7 +135,7 @@ export class TaskService {
         },
       })
 
-      const score = item.taskLinked
+      const score = this.isTaskLinkedKpiItem(item)
         ? this.scoreKpiItem(tasks, item.weight)
         : {
             completionScore: 0,

@@ -44,6 +44,16 @@ export class KpiService {
     )
   }
 
+  private isManagerOnlyKpiCategory(category?: string | null) {
+    return ['code quality', 'documentation'].includes(
+      String(category || '').trim().toLowerCase(),
+    )
+  }
+
+  private isTaskLinkedKpiItem(item: any) {
+    return item.taskLinked && !this.isManagerOnlyKpiCategory(item.category)
+  }
+
   getCurrentFinancialYear(date = new Date()) {
     const month = date.getMonth()
     const year = date.getFullYear()
@@ -435,7 +445,7 @@ export class KpiService {
         },
       })
 
-      const score = item.taskLinked
+      const score = this.isTaskLinkedKpiItem(item)
         ? this.scoreItem(tasks, item.weight)
         : {
             completionScore: 0,
@@ -520,7 +530,9 @@ export class KpiService {
       data: {
         managerScore,
         managerComments: String(body.managerComments || '').trim() || null,
-        currentScore: item.taskLinked ? item.currentScore : managerScore,
+        currentScore: this.isTaskLinkedKpiItem(item)
+          ? item.currentScore
+          : managerScore,
       },
     })
 
