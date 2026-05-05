@@ -12,6 +12,9 @@ import {
   TaskStatus,
 } from '@prisma/client'
 import { PrismaService } from 'src/prisma/prisma.service'
+import type { Response } from 'express'
+import PDFDocument from 'pdfkit'
+import * as path from 'path'
 
 @Injectable()
 export class KpiService {
@@ -354,6 +357,265 @@ export class KpiService {
     if (!isAllowed) throw new ForbiddenException('You cannot view this KPI')
 
     return assignment
+  }
+
+  private async getAuthorizedAssignment(id: string, user: any) {
+    const assignment = await this.prisma.kpiAssignment.findUnique({
+      where: { id },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+            designation: true,
+            department: true,
+          },
+        },
+        manager: { select: { id: true, firstName: true, lastName: true, email: true } },
+        cycle: true,
+        items: {
+          orderBy: { category: 'asc' },
+          include: {
+            tasks: {
+              select: {
+                id: true,
+                ticketId: true,
+                title: true,
+                status: true,
+                dueDate: true,
+                completedAt: true,
+                confirmedAt: true,
+                kpiWeight: true,
+              },
+            },
+          },
+        },
+        feedbacks: {
+          include: {
+            reviewer: { select: { firstName: true, lastName: true, role: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    })
+
+    if (!assignment) throw new NotFoundException('KPI assignment not found')
+
+    const isAllowed =
+      this.canManageKpi(user) ||
+      assignment.employeeId === user.userId ||
+      assignment.managerId === user.userId
+
+    if (!isAllowed) throw new ForbiddenException('You cannot view this KPI')
+
+    return assignment
+  }
+
+  async getKpiReport(id: string, user: any) {
+    const assignment = await this.getAuthorizedAssignment(id, user)
+    const latestFinalFeedback = assignment.feedbacks.find(
+      (feedback) => feedback.phase === KpiReviewPhase.FINAL,
+    )
+
+    return {
+      assignment,
+      summary: {
+        employeeName: `${assignment.employee.firstName} ${assignment.employee.lastName}`,
+        managerName: assignment.manager
+          ? `${assignment.manager.firstName} ${assignment.manager.lastName}`
+          : '-',
+        financialYear: assignment.cycle.financialYear,
+        reviewStatus: assignment.status,
+        autoScore: assignment.autoScore,
+        finalScore: assignment.finalScore,
+        rating: latestFinalFeedback?.rating || '-',
+        managerFinalComments: assignment.managerFinalComments || '',
+        employeeAcknowledgedAt: assignment.employeeAcknowledgedAt,
+        employeeAcknowledgementComment:
+          assignment.employeeAcknowledgementComment || '',
+      },
+    }
+  }
+
+  async acknowledgeAssignment(id: string, body: any, user: any) {
+    const assignment = await this.prisma.kpiAssignment.findUnique({
+      where: { id },
+    })
+
+    if (!assignment) throw new NotFoundException('KPI assignment not found')
+
+    if (assignment.employeeId !== user.userId) {
+      throw new ForbiddenException('Only the employee can acknowledge this KPI')
+    }
+
+    if (
+      assignment.status !== KpiAssignmentStatus.REVIEWED &&
+      assignment.status !== KpiAssignmentStatus.ACKNOWLEDGED
+    ) {
+      throw new BadRequestException('KPI can be acknowledged after manager review')
+    }
+
+    return this.prisma.kpiAssignment.update({
+      where: { id },
+      data: {
+        status: KpiAssignmentStatus.ACKNOWLEDGED,
+        employeeAcknowledgedAt: new Date(),
+        employeeAcknowledgementComment:
+          String(body.comment || '').trim() || null,
+        employeeComments: String(body.comment || '').trim() || null,
+      },
+      include: {
+        employee: { select: { firstName: true, lastName: true, email: true } },
+        manager: { select: { firstName: true, lastName: true } },
+        cycle: true,
+        items: true,
+      },
+    })
+  }
+
+  async generateKpiPdfReport(id: string, user: any, res: Response) {
+    const { assignment, summary } = await this.getKpiReport(id, user)
+    const doc = new PDFDocument({ margin: 40 })
+    const today = new Date().toISOString().split('T')[0]
+    const fileName = `KPI_${summary.employeeName.replace(/\s+/g, '_')}_${summary.financialYear.replace(/\s+/g, '_')}_${today}.pdf`
+
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`)
+    doc.pipe(res)
+
+    const logoPath = path.join(process.cwd(), 'public', 'DP_logo.png')
+
+    doc.font('Helvetica-Bold').fontSize(12).text('DIGITAL PERSONAS PVT LTD')
+    doc.text('KPI Performance Report')
+    try {
+      doc.image(logoPath, 450, 40, { width: 100 })
+    } catch {
+      // Logo is optional in local/dev environments.
+    }
+
+    doc.moveDown()
+    doc.moveTo(40, doc.y).lineTo(550, doc.y).stroke()
+    doc.moveDown()
+
+    doc.font('Helvetica-Bold').fontSize(16).text(summary.employeeName, {
+      align: 'center',
+    })
+    doc.font('Helvetica').fontSize(10).text(summary.financialYear, {
+      align: 'center',
+    })
+    doc.moveDown(1.5)
+
+    const info = [
+      ['Employee', summary.employeeName],
+      ['Designation', assignment.employee.designation || assignment.employee.role],
+      ['Department', assignment.employee.department?.name || '-'],
+      ['Manager', summary.managerName],
+      ['Status', summary.reviewStatus],
+      ['Rating', summary.rating],
+      ['Auto Score', String(Math.round(summary.autoScore || 0))],
+      ['Final Score', String(Math.round(summary.finalScore || 0))],
+    ]
+
+    doc.font('Helvetica-Bold').fontSize(12).text('Summary')
+    doc.font('Helvetica').fontSize(10)
+    info.forEach(([label, value]) => {
+      doc.text(`${label}: ${value}`)
+    })
+
+    doc.moveDown()
+    doc.font('Helvetica-Bold').fontSize(12).text('KPI Breakdown')
+    doc.moveDown(0.5)
+
+    const col0 = 40
+    const col1 = 200
+    const col2 = 260
+    const col3 = 330
+    const col4 = 410
+    let y = doc.y
+    const rowHeight = 36
+    const bottomMargin = 60
+
+    const drawHeader = () => {
+      doc.font('Helvetica-Bold').fontSize(9)
+      doc.rect(col0, y, 160, 22).stroke()
+      doc.text('Category', col0 + 5, y + 7, { width: 150, lineBreak: false })
+      doc.rect(col1, y, 60, 22).stroke()
+      doc.text('Weight', col1 + 5, y + 7)
+      doc.rect(col2, y, 70, 22).stroke()
+      doc.text('Score', col2 + 5, y + 7)
+      doc.rect(col3, y, 80, 22).stroke()
+      doc.text('Tasks', col3 + 5, y + 7)
+      doc.rect(col4, y, 140, 22).stroke()
+      doc.text('Comment', col4 + 5, y + 7)
+      y += 22
+      doc.font('Helvetica').fontSize(8)
+    }
+
+    drawHeader()
+
+    const trim = (text: string, max = 45) =>
+      text && text.length > max ? `${text.substring(0, max)}...` : text || '-'
+
+    assignment.items.forEach((item, index) => {
+      if (y + rowHeight > doc.page.height - bottomMargin) {
+        doc.addPage()
+        y = 60
+        drawHeader()
+      }
+
+      if (index % 2 === 0) {
+        doc.rect(col0, y, 510, rowHeight).fill('#f6f7fb')
+        doc.fillColor('black')
+      }
+
+      doc.rect(col0, y, 160, rowHeight).stroke()
+      doc.text(trim(item.category, 28), col0 + 5, y + 8, {
+        width: 150,
+        lineBreak: false,
+      })
+      doc.rect(col1, y, 60, rowHeight).stroke()
+      doc.text(`${item.weight}%`, col1 + 5, y + 8)
+      doc.rect(col2, y, 70, rowHeight).stroke()
+      doc.text(`${Math.round(item.currentScore || 0)}`, col2 + 5, y + 8)
+      doc.rect(col3, y, 80, rowHeight).stroke()
+      doc.text(`${item.tasks?.length || 0}`, col3 + 5, y + 8)
+      doc.rect(col4, y, 140, rowHeight).stroke()
+      doc.text(trim(item.managerComments || '-', 35), col4 + 5, y + 8, {
+        width: 130,
+        lineBreak: false,
+      })
+
+      y += rowHeight
+    })
+
+    doc.y = y + 16
+    doc.font('Helvetica-Bold').fontSize(12).text('Manager Feedback')
+    doc.font('Helvetica').fontSize(10).text(summary.managerFinalComments || '-')
+    doc.moveDown()
+    doc.font('Helvetica-Bold').fontSize(12).text('Employee Acknowledgement')
+    doc.font('Helvetica').fontSize(10)
+    doc.text(
+      summary.employeeAcknowledgedAt
+        ? `Acknowledged on ${new Date(
+            summary.employeeAcknowledgedAt,
+          ).toLocaleDateString('en-IN')}`
+        : 'Pending acknowledgement',
+    )
+    doc.text(summary.employeeAcknowledgementComment || '-')
+
+    doc.moveDown(2)
+    doc
+      .font('Helvetica-Oblique')
+      .fontSize(9)
+      .fillColor('gray')
+      .text('Generated by Task Analytics System', 0, doc.y, {
+        align: 'center',
+      })
+
+    doc.end()
   }
 
   private scoreItem(tasks: any[], weight: number) {

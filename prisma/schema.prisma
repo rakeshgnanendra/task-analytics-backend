@@ -239,6 +239,8 @@ model KpiAssignment {
   finalScore           Float               @default(0)
   managerFinalComments String?
   employeeComments     String?
+  employeeAcknowledgedAt DateTime?
+  employeeAcknowledgementComment String?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
   cycle                KpiCycle            @relation(fields: [cycleId], references: [id])
@@ -345,6 +347,7 @@ enum KpiAssignmentStatus {
   ASSIGNED
   REVIEW_OPEN
   REVIEWED
+  ACKNOWLEDGED
   FINALIZED
 }
 

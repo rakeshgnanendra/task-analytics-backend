@@ -7,8 +7,10 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common'
+import type { Response } from 'express'
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard'
 import { KpiService } from './kpi.service'
 
@@ -70,6 +72,29 @@ export class KpiController {
   @Post('assignments/:id/recalculate')
   recalculateAssignment(@Param('id') id: string, @Req() req: any) {
     return this.kpiService.recalculateAssignment(id, req.user)
+  }
+
+  @Get('assignments/:id/report')
+  getKpiReport(@Param('id') id: string, @Req() req: any) {
+    return this.kpiService.getKpiReport(id, req.user)
+  }
+
+  @Get('assignments/:id/report/pdf')
+  getKpiPdfReport(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    return this.kpiService.generateKpiPdfReport(id, req.user, res)
+  }
+
+  @Post('assignments/:id/acknowledge')
+  acknowledgeAssignment(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    return this.kpiService.acknowledgeAssignment(id, body, req.user)
   }
 
   @Patch('assignments/:id/items/:itemId/review')
