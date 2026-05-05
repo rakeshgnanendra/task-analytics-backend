@@ -451,11 +451,12 @@ export class KpiService {
       throw new ForbiddenException('Only the employee can acknowledge this KPI')
     }
 
-    if (
-      assignment.status !== KpiAssignmentStatus.REVIEWED &&
-      assignment.status !== KpiAssignmentStatus.ACKNOWLEDGED
-    ) {
+    if (assignment.status !== KpiAssignmentStatus.REVIEWED) {
       throw new BadRequestException('KPI can be acknowledged after manager review')
+    }
+
+    if (assignment.employeeAcknowledgedAt) {
+      throw new BadRequestException('KPI is already acknowledged')
     }
 
     return this.prisma.kpiAssignment.update({
