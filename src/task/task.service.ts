@@ -27,6 +27,125 @@ export class TaskService {
    
   constructor(private prisma: PrismaService, private logService:LogsService,  private notificationService: NotificationService,  private socketGateway: SocketGateway, private emailService: EmailService ) {}
 
+  private toIstEndOfDay(date: Date) {
+    const dueDate = new Date(date)
+    dueDate.setUTCHours(18, 29, 59, 999)
+    return dueDate
+  }
+
+  private async recalculateTaskKpi(task: any) {
+    if (!task?.kpiAssignmentItemId) return
+
+    const item = await this.prisma.kpiAssignmentItem.findUnique({
+      where: { id: task.kpiAssignmentItemId },
+      select: { assignmentId: true },
+    })
+
+    if (!item) return
+
+    await this.recalculateKpiAssignmentById(item.assignmentId)
+  }
+
+  private scoreKpiItem(tasks: any[], weight: number) {
+    const linkedTasks = tasks.filter((task) => task.isKpiLinked)
+    const confirmedTasks = linkedTasks.filter(
+      (task) => task.status === TaskStatus.CONFIRMED,
+    )
+    const rejectedTasks = linkedTasks.filter(
+      (task) => task.status === TaskStatus.REJECTED,
+    )
+
+    if (linkedTasks.length === 0) {
+      return {
+        completionScore: 0,
+        onTimeScore: 0,
+        qualityScore: 0,
+        productivityScore: 0,
+        currentScore: 0,
+      }
+    }
+
+    const onTimeConfirmed = confirmedTasks.filter((task) => {
+      const doneAt = task.confirmedAt || task.completedAt
+      return doneAt && new Date(doneAt) <= this.toIstEndOfDay(task.dueDate)
+    })
+
+    const completionRate = confirmedTasks.length / linkedTasks.length
+    const onTimeRate = confirmedTasks.length
+      ? onTimeConfirmed.length / confirmedTasks.length
+      : 0
+    const qualityRate = Math.max(
+      0,
+      1 - rejectedTasks.length / linkedTasks.length,
+    )
+    const productivityRate = Math.min(
+      1,
+      linkedTasks.reduce(
+        (sum, task) => sum + Number(task.kpiWeight || 1),
+        0,
+      ) / linkedTasks.length / 3,
+    )
+
+    const completionScore = weight * 0.35 * completionRate
+    const onTimeScore = weight * 0.25 * onTimeRate
+    const qualityScore = weight * 0.25 * qualityRate
+    const productivityScore = weight * 0.15 * productivityRate
+
+    return {
+      completionScore,
+      onTimeScore,
+      qualityScore,
+      productivityScore,
+      currentScore:
+        completionScore + onTimeScore + qualityScore + productivityScore,
+    }
+  }
+
+  private async recalculateKpiAssignmentById(assignmentId: string) {
+    const assignment = await this.prisma.kpiAssignment.findUnique({
+      where: { id: assignmentId },
+      include: { items: true, cycle: true },
+    })
+
+    if (!assignment) return
+
+    let autoScore = 0
+
+    for (const item of assignment.items) {
+      const tasks = await this.prisma.task.findMany({
+        where: {
+          assignedToId: assignment.employeeId,
+          isDeleted: false,
+          isKpiLinked: true,
+          kpiAssignmentItemId: item.id,
+          createdAt: {
+            gte: assignment.cycle.startDate,
+            lte: assignment.cycle.endDate,
+          },
+        },
+      })
+
+      const score = this.scoreKpiItem(tasks, item.weight)
+      autoScore += score.currentScore
+
+      await this.prisma.kpiAssignmentItem.update({
+        where: { id: item.id },
+        data: score,
+      })
+    }
+
+    await this.prisma.kpiAssignment.update({
+      where: { id: assignmentId },
+      data: {
+        autoScore,
+        finalScore: Math.max(
+          0,
+          Math.min(100, autoScore + assignment.managerAdjustment),
+        ),
+      },
+    })
+  }
+
   private readonly taskChatInclude = {
     assignedTo: true,
     createdBy: true,
@@ -143,7 +262,7 @@ async createTask(
     description,
     createdById: creatorId,
     assignedToId,
-    dueDate,
+    dueDate: this.toIstEndOfDay(dueDate),
     priority,
     status: isSelfCreated ? TaskStatus.PENDING_APPROVAL : TaskStatus.CREATED,
     isKpiLinked,
@@ -866,6 +985,9 @@ if (task.projectId !== null && task.projectId !== undefined) {
   where: { id: taskId },
   data: updateData,
 });
+
+await this.recalculateTaskKpi(updatedTask)
+
 if (updatedTask.assignedToId && newStatus !== task.status) {
   const user = await this.prisma.user.findUnique({
     where: { id: updatedTask.assignedToId },
@@ -1496,7 +1618,7 @@ async extendDueDate(
   const updatedTask = await this.prisma.task.update({
     where: { id: taskId },
     data: {
-      dueDate: newDueDate
+      dueDate: this.toIstEndOfDay(newDueDate)
     }
   })
 

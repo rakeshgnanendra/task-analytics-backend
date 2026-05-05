@@ -21,6 +21,12 @@ export class KpiService {
     return ['SUPER_ADMIN', 'DELIVERY_HEAD', 'HR'].includes(user.role)
   }
 
+  private toIstEndOfDay(date: Date) {
+    const dueDate = new Date(date)
+    dueDate.setUTCHours(18, 29, 59, 999)
+    return dueDate
+  }
+
   private assertCanManageKpi(user: any) {
     if (!this.canManageKpi(user)) {
       throw new ForbiddenException('You cannot manage KPI records')
@@ -323,7 +329,7 @@ export class KpiService {
 
     const onTimeConfirmed = confirmedTasks.filter((task) => {
       const doneAt = task.confirmedAt || task.completedAt
-      return doneAt && new Date(doneAt) <= new Date(task.dueDate)
+      return doneAt && new Date(doneAt) <= this.toIstEndOfDay(task.dueDate)
     })
 
     const completionRate = confirmedTasks.length / linkedTasks.length
