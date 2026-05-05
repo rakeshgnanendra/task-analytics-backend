@@ -97,6 +97,11 @@ export class KpiController {
     return this.kpiService.acknowledgeAssignment(id, body, req.user)
   }
 
+  @Post('assignments/:id/finalize')
+  finalizeAssignment(@Param('id') id: string, @Req() req: any) {
+    return this.kpiService.finalizeAssignment(id, req.user)
+  }
+
   @Patch('assignments/:id/items/:itemId/review')
   reviewAssignmentItem(
     @Param('id') id: string,

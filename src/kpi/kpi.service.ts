@@ -477,6 +477,42 @@ export class KpiService {
     })
   }
 
+  async finalizeAssignment(id: string, user: any) {
+    this.assertCanManageKpi(user)
+
+    const assignment = await this.prisma.kpiAssignment.findUnique({
+      where: { id },
+    })
+
+    if (!assignment) throw new NotFoundException('KPI assignment not found')
+
+    if (assignment.status === KpiAssignmentStatus.FINALIZED) {
+      return assignment
+    }
+
+    if (
+      assignment.status !== KpiAssignmentStatus.ACKNOWLEDGED ||
+      !assignment.employeeAcknowledgedAt
+    ) {
+      throw new BadRequestException(
+        'KPI can be finalized after employee acknowledgement',
+      )
+    }
+
+    return this.prisma.kpiAssignment.update({
+      where: { id },
+      data: {
+        status: KpiAssignmentStatus.FINALIZED,
+      },
+      include: {
+        employee: { select: { firstName: true, lastName: true, email: true } },
+        manager: { select: { firstName: true, lastName: true } },
+        cycle: true,
+        items: true,
+      },
+    })
+  }
+
   async generateKpiPdfReport(id: string, user: any, res: Response) {
     const { assignment, summary } = await this.getKpiReport(id, user)
     const doc = new PDFDocument({ margin: 40 })
