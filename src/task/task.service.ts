@@ -125,7 +125,18 @@ export class TaskService {
         },
       })
 
-      const score = this.scoreKpiItem(tasks, item.weight)
+      const score = item.taskLinked
+        ? this.scoreKpiItem(tasks, item.weight)
+        : {
+            completionScore: 0,
+            onTimeScore: 0,
+            qualityScore: 0,
+            productivityScore: 0,
+            currentScore: Math.max(
+              0,
+              Math.min(Number(item.weight || 0), Number(item.managerScore || 0)),
+            ),
+          }
       autoScore += score.currentScore
 
       await this.prisma.kpiAssignmentItem.update({

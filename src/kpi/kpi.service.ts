@@ -33,6 +33,17 @@ export class KpiService {
     }
   }
 
+  private isReviewWindowOpen(cycle: any) {
+    const now = new Date()
+
+    return (
+      cycle.managerReviewStart &&
+      cycle.managerReviewEnd &&
+      now >= cycle.managerReviewStart &&
+      now <= cycle.managerReviewEnd
+    )
+  }
+
   getCurrentFinancialYear(date = new Date()) {
     const month = date.getMonth()
     const year = date.getFullYear()
@@ -424,7 +435,18 @@ export class KpiService {
         },
       })
 
-      const score = this.scoreItem(tasks, item.weight)
+      const score = item.taskLinked
+        ? this.scoreItem(tasks, item.weight)
+        : {
+            completionScore: 0,
+            onTimeScore: 0,
+            qualityScore: 0,
+            productivityScore: 0,
+            currentScore: Math.max(
+              0,
+              Math.min(Number(item.weight || 0), Number(item.managerScore || 0)),
+            ),
+          }
       autoScore += score.currentScore
 
       await this.prisma.kpiAssignmentItem.update({
@@ -451,6 +473,60 @@ export class KpiService {
     })
   }
 
+  async reviewAssignmentItem(
+    assignmentId: string,
+    itemId: string,
+    body: any,
+    user: any,
+  ) {
+    const assignment = await this.prisma.kpiAssignment.findUnique({
+      where: { id: assignmentId },
+      include: { cycle: true },
+    })
+
+    if (!assignment) throw new NotFoundException('KPI assignment not found')
+
+    const isReviewer =
+      this.canManageKpi(user) || assignment.managerId === user.userId
+
+    if (!isReviewer) {
+      throw new ForbiddenException('Only HR/DH/manager can review KPI items')
+    }
+
+    if (!this.isReviewWindowOpen(assignment.cycle) && !this.canManageKpi(user)) {
+      throw new ForbiddenException('KPI review window is closed')
+    }
+
+    const item = await this.prisma.kpiAssignmentItem.findFirst({
+      where: { id: itemId, assignmentId },
+    })
+
+    if (!item) throw new NotFoundException('KPI item not found')
+
+    const managerScore = Number(body.managerScore ?? 0)
+
+    if (
+      !Number.isFinite(managerScore) ||
+      managerScore < 0 ||
+      managerScore > item.weight
+    ) {
+      throw new BadRequestException(
+        `Manager score must be between 0 and ${item.weight}`,
+      )
+    }
+
+    await this.prisma.kpiAssignmentItem.update({
+      where: { id: itemId },
+      data: {
+        managerScore,
+        managerComments: String(body.managerComments || '').trim() || null,
+        currentScore: item.taskLinked ? item.currentScore : managerScore,
+      },
+    })
+
+    return this.recalculateAssignment(assignmentId, user)
+  }
+
   async addFeedback(id: string, body: any, user: any) {
     const assignment = await this.prisma.kpiAssignment.findUnique({
       where: { id },
@@ -466,18 +542,21 @@ export class KpiService {
       throw new ForbiddenException('Only HR/DH/manager can add KPI feedback')
     }
 
-    const now = new Date()
-    const reviewOpen =
-      assignment.cycle.managerReviewStart &&
-      assignment.cycle.managerReviewEnd &&
-      now >= assignment.cycle.managerReviewStart &&
-      now <= assignment.cycle.managerReviewEnd
-
-    if (!reviewOpen && !this.canManageKpi(user)) {
+    if (!this.isReviewWindowOpen(assignment.cycle) && !this.canManageKpi(user)) {
       throw new ForbiddenException('KPI review window is closed')
     }
 
     const adjustment = Number(body.adjustment || 0)
+
+    if (!Number.isFinite(adjustment) || adjustment < -25 || adjustment > 25) {
+      throw new BadRequestException('Adjustment must be between -25 and 25')
+    }
+
+    const comment = String(body.comment || '').trim()
+
+    if (!comment) {
+      throw new BadRequestException('Feedback comment is required')
+    }
 
     await this.prisma.kpiFeedback.create({
       data: {
@@ -485,7 +564,7 @@ export class KpiService {
         reviewerId: user.userId,
         phase: (body.phase || KpiReviewPhase.FINAL) as KpiReviewPhase,
         rating: body.rating || null,
-        comment: body.comment,
+        comment,
         adjustment,
       },
     })
@@ -494,7 +573,7 @@ export class KpiService {
       where: { id },
       data: {
         managerAdjustment: adjustment,
-        managerFinalComments: body.comment,
+        managerFinalComments: comment,
         status: KpiAssignmentStatus.REVIEWED,
       },
     })

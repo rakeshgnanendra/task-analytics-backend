@@ -72,6 +72,16 @@ export class KpiController {
     return this.kpiService.recalculateAssignment(id, req.user)
   }
 
+  @Patch('assignments/:id/items/:itemId/review')
+  reviewAssignmentItem(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    return this.kpiService.reviewAssignmentItem(id, itemId, body, req.user)
+  }
+
   @Post('assignments/:id/feedback')
   addFeedback(@Param('id') id: string, @Body() body: any, @Req() req: any) {
     return this.kpiService.addFeedback(id, body, req.user)
