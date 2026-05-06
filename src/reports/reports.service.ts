@@ -29,7 +29,18 @@ private getDateRange(
   let end: Date = new Date()
   let label = 'Custom Report'
 
-  if (duration === '1m') {
+  if (duration === 'fy') {
+    const month = today.getMonth()
+    const year = today.getFullYear()
+    const startYear = month >= 8 ? year : year - 1
+    const endYear = startYear + 1
+
+    start = new Date(startYear, 8, 1)
+    end = new Date(endYear, 7, 31, 23, 59, 59, 999)
+    label = `FY ${startYear}-${String(endYear).slice(-2)} Report`
+  }
+
+  else if (duration === '1m') {
     start = new Date()
     start.setMonth(start.getMonth() - 1)
     label = 'Monthly Report'
