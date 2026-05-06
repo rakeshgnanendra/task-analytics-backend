@@ -667,20 +667,26 @@ export class KpiService {
         .text(value, x + 10, y + 28, { width: width - 20, lineBreak: false })
     }
 
-    doc.rect(0, 0, pageWidth, 88).fill(colors.slate)
-    doc.fillColor('white')
-    doc.font('Helvetica-Bold').fontSize(12).text('DIGITAL PERSONAS PVT LTD', left, 28)
     doc
-      .font('Helvetica')
-      .fontSize(9)
-      .text('KPI Performance Report', left, 48)
+      .font('Helvetica-Bold')
+      .fontSize(16)
+      .fillColor(colors.slate)
+      .text('KPI PERFORMANCE REPORT', left, 34)
+    doc.font('Helvetica').fontSize(8.5).fillColor(colors.slate)
+    doc.text('DIGITAL PERSONAS PVT LTD', left, 62)
+    doc.text('DIGITAL PERSONAS PVT LTD., 703,', left, 84)
+    doc.text('GOWRA FOUNTAINHEAD, HUDA', left, 96)
+    doc.text('TECHNO ENCLAVE, HITEC CITY,', left, 108)
+    doc.text('MADHAPUR, TELANGANA,', left, 120)
+    doc.text('HYDERABAD, 500081.', left, 132)
     try {
-      doc.image(logoPath, right - 88, 24, { width: 88 })
+      doc.image(logoPath, right - 170, 30, { width: 170 })
     } catch {
       // Logo is optional in local/dev environments.
     }
+    doc.moveTo(left, 160).lineTo(right, 160).strokeColor(colors.line).stroke()
 
-    doc.y = 112
+    doc.y = 178
     doc
       .font('Helvetica-Bold')
       .fontSize(20)
@@ -819,17 +825,33 @@ export class KpiService {
     })
 
     doc.moveDown(1.2)
+    const managerFeedback = summary.managerFinalComments || '-'
+    ensureSpace(
+      48 +
+        doc.heightOfString(managerFeedback, {
+          width: contentWidth,
+          lineGap: 3,
+        }),
+    )
     sectionTitle('Manager Feedback')
     doc
       .font('Helvetica')
       .fontSize(10)
       .fillColor(colors.slate)
-      .text(summary.managerFinalComments || '-', left, doc.y, {
+      .text(managerFeedback, left, doc.y, {
         width: contentWidth,
         lineGap: 3,
       })
 
     doc.moveDown(1.2)
+    const acknowledgementText = summary.employeeAcknowledgementComment || '-'
+    ensureSpace(
+      62 +
+        doc.heightOfString(acknowledgementText, {
+          width: contentWidth,
+          lineGap: 3,
+        }),
+    )
     sectionTitle('Employee Acknowledgement')
     doc
       .font('Helvetica-Bold')
@@ -847,12 +869,13 @@ export class KpiService {
       .font('Helvetica')
       .fontSize(10)
       .fillColor(colors.slate)
-      .text(summary.employeeAcknowledgementComment || '-', left, doc.y, {
+      .text(acknowledgementText, left, doc.y, {
         width: contentWidth,
         lineGap: 3,
       })
 
     const footerY = doc.page.height - 42
+    const previousY = doc.y
     doc
       .font('Helvetica-Oblique')
       .fontSize(8)
@@ -861,6 +884,7 @@ export class KpiService {
         width: contentWidth,
         align: 'center',
       })
+    doc.y = previousY
 
     doc.end()
   }
