@@ -5,8 +5,28 @@ import { PrismaClient, TaskStatus } from '@prisma/client'
 export class DashboardService {
   constructor(private prisma: PrismaClient) {}
 
+  private getCurrentFinancialYearRange(date = new Date()) {
+    const month = date.getMonth()
+    const year = date.getFullYear()
+    const startYear = month >= 8 ? year : year - 1
+    const endYear = startYear + 1
+
+    return {
+      start: new Date(startYear, 8, 1),
+      end: new Date(endYear, 7, 31, 23, 59, 59, 999),
+    }
+  }
+
   async getDashboardData(userId: string, role: string) {
     const now = new Date()
+    const fy = this.getCurrentFinancialYearRange(now)
+    const fyTaskWhere = {
+      isDeleted: false,
+      createdAt: {
+        gte: fy.start,
+        lte: fy.end,
+      },
+    }
 
 const startOfThisWeek = new Date(now)
 startOfThisWeek.setDate(now.getDate() - now.getDay())
@@ -21,13 +41,14 @@ const endOfLastWeek = new Date(startOfThisWeek)
     if (role === 'SUPER_ADMIN') {
   const totalUsers = await this.prisma.user.count()
   const totalProjects = await this.prisma.project.count()
-  const totalTasks = await this.prisma.task.count()
+  const totalTasks = await this.prisma.task.count({ where: fyTaskWhere })
 const today = new Date();
 const sevenDaysAgo = new Date();
 sevenDaysAgo.setDate(today.getDate() - 6);
 
 const tasks = await this.prisma.task.findMany({
   where: {
+    isDeleted: false,
     createdAt: {
       gte: sevenDaysAgo,
     },
@@ -73,7 +94,7 @@ const deliveryHeads = await this.prisma.user.findMany({
   include: {
     deliveryHeadProjects: {
       include: {
-        tasks: true,
+        tasks: { where: fyTaskWhere },
       },
     },
   },
@@ -103,7 +124,7 @@ const deliveryHeadPerformance = deliveryHeads.map((head) => {
   };
 });
 
-  const statusDistribution = await this.getStatusDistribution({});
+  const statusDistribution = await this.getStatusDistribution(fyTaskWhere);
 
   return {
     role: 'SUPER_ADMIN',
@@ -147,7 +168,7 @@ const managerPerformance = await Promise.all(
     const totalTasks = await this.prisma.task.count({
       where: {
         projectId: { in: projectIds },
-        isDeleted: false
+        ...fyTaskWhere,
       },
     })
 
@@ -155,7 +176,7 @@ const managerPerformance = await Promise.all(
       where: {
         projectId: { in: projectIds },
         status: TaskStatus.CONFIRMED,
-        isDeleted: false
+        ...fyTaskWhere,
       },
     })
 const nextFourDays = new Date()
@@ -185,7 +206,7 @@ nextFourDays.setDate(today.getDate() + 4)
     const thisWeekCompleted = await this.prisma.task.count({
   where: {
     status: TaskStatus.CONFIRMED,
-    isDeleted: false,
+    ...fyTaskWhere,
     updatedAt: {
       gte: startOfThisWeek,
     },
@@ -195,6 +216,7 @@ nextFourDays.setDate(today.getDate() + 4)
 const lastWeekCompleted = await this.prisma.task.count({
   where: {
     status: TaskStatus.CONFIRMED,
+    ...fyTaskWhere,
     updatedAt: {
       gte: startOfLastWeek,
       lt: endOfLastWeek,
@@ -212,13 +234,13 @@ if (lastWeekCompleted === 0) {
     ((thisWeekCompleted - lastWeekCompleted) / lastWeekCompleted) * 100
   );
 }
-    const statusDistribution = await this.getStatusDistribution({})
+    const statusDistribution = await this.getStatusDistribution(fyTaskWhere)
 
   // 1️⃣ Total projects
 const projects = await this.prisma.project.findMany({
   where: { deliveryHeadId: userId },
   include: {
-    tasks: true,
+    tasks: { where: fyTaskWhere },
     members: true,
   },
 })
@@ -239,6 +261,7 @@ const overduePerProjectRaw = await this.prisma.task.groupBy({
   by: ['projectId'],
   where: {
     projectId: { not: null }, // 🔥 filter nulls
+    ...fyTaskWhere,
     dueDate: { lt: today },
     status: { not: TaskStatus.CONFIRMED },
   },
@@ -371,7 +394,7 @@ const highRiskProjects = projectsOverview.filter(
   // 5️⃣ Top performers
   const topPerformers = await this.prisma.task.groupBy({
     by: ['assignedToId'],
-    where: { status: TaskStatus.CONFIRMED },
+    where: { status: TaskStatus.CONFIRMED, ...fyTaskWhere },
     _count: { id: true },
     orderBy: {
       _count: { id: 'desc' },
@@ -428,19 +451,19 @@ const highRiskProjects = projectsOverview.filter(
     const projectIds = managerProjects.map(p => p.projectId)
 const statusDistribution = await this.getStatusDistribution({
   projectId: { in: projectIds },
-  isDeleted: false,
+  ...fyTaskWhere,
 })
 
     if (projectIds.length > 0) {
       const totalTasks = await this.prisma.task.count({
-        where: { projectId: { in: projectIds } , isDeleted: false},
+        where: { projectId: { in: projectIds }, ...fyTaskWhere },
       })
 
       const completed = await this.prisma.task.count({
         where: {
           projectId: { in: projectIds },
           status: TaskStatus.CONFIRMED,
-          isDeleted: false
+          ...fyTaskWhere,
         },
       })
 
@@ -448,16 +471,16 @@ const statusDistribution = await this.getStatusDistribution({
         where: {
           projectId: { in: projectIds },
           status: TaskStatus.COMPLETED,
-          isDeleted: false
+          ...fyTaskWhere,
         },
       })
 const overduePerProject = await this.prisma.task.groupBy({
   by: ['projectId'],
   where: {
     projectId: { in: projectIds },
+    ...fyTaskWhere,
     dueDate: { lt: today },
     status: { not: TaskStatus.CONFIRMED },
-    isDeleted: false
   },
   _count: { id: true },
 })
@@ -474,30 +497,31 @@ const overduePerProject = await this.prisma.task.groupBy({
 
     // 👨‍💻 TEAM MEMBER
     const assignedTasks = await this.prisma.task.count({
-      where: { assignedToId: userId , isDeleted: false },
+      where: { assignedToId: userId, ...fyTaskWhere },
       
     })
 
    const completed = await this.prisma.task.count({
   where: {
     assignedToId: userId,
+    ...fyTaskWhere,
     status: {
       in: [TaskStatus.COMPLETED, TaskStatus.CONFIRMED],
     },
-    isDeleted: false,
   },
 })
     const inProgress = await this.prisma.task.count({
   where: {
     assignedToId: userId,
+    ...fyTaskWhere,
     status: TaskStatus.IN_PROGRESS,
-    isDeleted: false
   },
 })
 
     const overdue = await this.prisma.task.count({
   where: {
     assignedToId: userId,
+    ...fyTaskWhere,
     dueDate: { lt: today },
     status: {
       in: [
@@ -506,12 +530,11 @@ const overduePerProject = await this.prisma.task.groupBy({
         TaskStatus.REWORK,
       ],
     },
-    isDeleted: false,
   },
 })
  const statusDistribut = await this.getStatusDistribution({
   assignedToId: userId,
-  isDeleted: false
+  ...fyTaskWhere
 })
 
 

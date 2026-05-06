@@ -5,6 +5,18 @@ import { PrismaService } from 'src/prisma/prisma.service'
 export class DepartmentService {
   constructor(private prisma: PrismaService) {}
 
+  private getCurrentFinancialYearRange(date = new Date()) {
+    const month = date.getMonth()
+    const year = date.getFullYear()
+    const startYear = month >= 8 ? year : year - 1
+    const endYear = startYear + 1
+
+    return {
+      start: new Date(startYear, 8, 1),
+      end: new Date(endYear, 7, 31, 23, 59, 59, 999),
+    }
+  }
+
   async create(name: string) {
     const exists = await this.prisma.department.findUnique({
       where: { name },
@@ -71,11 +83,16 @@ export class DepartmentService {
   });
 }
 async getDepartmentDashboard(departmentId: string) {
+  const fy = this.getCurrentFinancialYearRange()
 
   const tasks = await this.prisma.task.findMany({
     where: {
       departmentId,
-      isDeleted: false
+      isDeleted: false,
+      createdAt: {
+        gte: fy.start,
+        lte: fy.end,
+      },
     }
   });
 
