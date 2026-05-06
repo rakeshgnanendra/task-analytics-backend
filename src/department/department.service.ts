@@ -112,7 +112,71 @@ async getDepartmentDashboard(departmentId: string) {
 async assignUser(departmentId: string, userId: string) {
   return this.prisma.user.update({
     where: { id: userId },
-    data: { departmentId },
+    data: { departmentId, departmentLeadId: null, isDepartmentLead: false },
+  })
+}
+async setLeadStatus(departmentId: string, userId: string, isDepartmentLead: boolean) {
+  const user = await this.prisma.user.findUnique({
+    where: { id: userId },
+  })
+
+  if (!user || user.departmentId !== departmentId) {
+    throw new BadRequestException('User is not part of this department')
+  }
+
+  if (!isDepartmentLead) {
+    await this.prisma.user.updateMany({
+      where: { departmentLeadId: userId },
+      data: { departmentLeadId: null },
+    })
+  }
+
+  return this.prisma.user.update({
+    where: { id: userId },
+    data: {
+      isDepartmentLead,
+      departmentLeadId: isDepartmentLead ? null : user.departmentLeadId,
+    },
+    include: {
+      departmentLead: { select: { id: true, firstName: true, lastName: true } },
+      departmentTeamMembers: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
+    },
+  })
+}
+async assignTeamLead(departmentId: string, userId: string, leadId: string | null) {
+  const user = await this.prisma.user.findUnique({
+    where: { id: userId },
+  })
+
+  if (!user || user.departmentId !== departmentId) {
+    throw new BadRequestException('User is not part of this department')
+  }
+
+  if (leadId) {
+    if (leadId === userId) {
+      throw new BadRequestException('User cannot report to themselves')
+    }
+
+    const lead = await this.prisma.user.findUnique({
+      where: { id: leadId },
+    })
+
+    if (!lead || lead.departmentId !== departmentId || !lead.isDepartmentLead) {
+      throw new BadRequestException('Selected lead is not a department lead')
+    }
+  }
+
+  return this.prisma.user.update({
+    where: { id: userId },
+    data: { departmentLeadId: leadId },
+    include: {
+      departmentLead: { select: { id: true, firstName: true, lastName: true } },
+      departmentTeamMembers: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
+    },
   })
 }
 async getUsers(departmentId: string) {
@@ -120,6 +184,17 @@ async getUsers(departmentId: string) {
     where: {
       departmentId: departmentId,
     },
+    include: {
+      departmentLead: { select: { id: true, firstName: true, lastName: true } },
+      departmentTeamMembers: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
+    },
+    orderBy: [
+      { isDepartmentLead: 'desc' },
+      { firstName: 'asc' },
+      { lastName: 'asc' },
+    ],
   })
 }
 }

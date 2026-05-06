@@ -353,12 +353,6 @@ async createTask(
       throw new NotFoundException('Department not found')
     }
 
-    if (creatorRole !== 'DELIVERY_HEAD' && !isSelfCreated) {
-      throw new ForbiddenException(
-        'Only Delivery Head can create tasks for departments',
-      )
-    }
-
     const user = await this.prisma.user.findUnique({
       where: { id: assignedToId },
     })
@@ -366,6 +360,26 @@ async createTask(
     if (!user || user.departmentId !== departmentId) {
       throw new BadRequestException(
         'Assigned user is not part of this department',
+      )
+    }
+
+    const creator = await this.prisma.user.findUnique({
+      where: { id: creatorId },
+      select: { id: true, departmentId: true, isDepartmentLead: true },
+    })
+    const isLeadCreatingForTeam =
+      creator?.departmentId === departmentId &&
+      creator.isDepartmentLead &&
+      user.departmentLeadId === creatorId
+
+    if (
+      creatorRole !== 'DELIVERY_HEAD' &&
+      creatorRole !== 'SUPER_ADMIN' &&
+      !isSelfCreated &&
+      !isLeadCreatingForTeam
+    ) {
+      throw new ForbiddenException(
+        'Only Delivery Head or assigned department lead can create tasks for departments',
       )
     }
 
@@ -820,16 +834,29 @@ if (task.projectId !== null && task.projectId !== undefined) {
   isProjectManager = !!managerLink;
 }
 
-  // Department Head check (Department flow)
+  // Department Head / Lead check (Department flow)
   let isDepartmentHead = false
+  let isDepartmentLead = false
 
   if (task.departmentId) {
-    const department = await this.prisma.department.findUnique({
-      where: { id: task.departmentId },
-    })
+    const [leadUser, assignee] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: user },
+        select: { departmentId: true, isDepartmentLead: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: task.assignedToId },
+        select: { departmentLeadId: true },
+      }),
+    ])
 
-    // 👉 Better if you have headId
-    isDepartmentHead = globalRole === 'DELIVERY_HEAD'
+    isDepartmentLead = Boolean(
+      leadUser?.departmentId === task.departmentId &&
+        leadUser.isDepartmentLead &&
+        (assignee?.departmentLeadId === user || task.assignedToId === user),
+    )
+
+    isDepartmentHead = ['DELIVERY_HEAD', 'SUPER_ADMIN'].includes(globalRole)
   }
 
   // Assigned User (Team Member)
@@ -887,7 +914,7 @@ if (task.projectId !== null && task.projectId !== undefined) {
   }
 
   // 🔹 DEPARTMENT HEAD (Department tasks)
-  if (task.departmentId && isDepartmentHead) {
+  if (task.departmentId && (isDepartmentHead || isDepartmentLead)) {
     if (
       newStatus !== TaskStatus.CREATED &&
       newStatus !== TaskStatus.CONFIRMED &&
@@ -895,7 +922,7 @@ if (task.projectId !== null && task.projectId !== undefined) {
       newStatus !== TaskStatus.REWORK
     ) {
       throw new ForbiddenException(
-        'Department Head cannot perform this action',
+        'Department approver cannot perform this action',
       )
     }
   }
@@ -913,6 +940,7 @@ if (task.projectId !== null && task.projectId !== undefined) {
     isAssignedUser ||
     isProjectManager ||
     isDepartmentHead ||
+    isDepartmentLead ||
     globalRole === 'SUPER_ADMIN'
 
   if (!isAllowed) {

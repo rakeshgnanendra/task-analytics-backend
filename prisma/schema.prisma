@@ -45,6 +45,8 @@ model User {
   role                  GlobalRole        @default(EMPLOYEE)
   designation           String?
   isActive              Boolean           @default(true)
+  isDepartmentLead      Boolean           @default(false)
+  departmentLeadId      String?
   departmentId          String
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
@@ -57,6 +59,8 @@ model User {
   createdTasks          Task[]            @relation("CreatedTasks")
   uploadedFiles         TaskFile[]
   department            Department        @relation(fields: [departmentId], references: [id])
+  departmentLead        User?             @relation("DepartmentLeadMembers", fields: [departmentLeadId], references: [id])
+  departmentTeamMembers User[]            @relation("DepartmentLeadMembers")
   comments              TaskComment[]
   chatSeen              TaskChatSeen[]
   notification          Notification[]
@@ -66,6 +70,8 @@ model User {
   kpiFeedbacks          KpiFeedback[]     @relation("KpiFeedbackReviewer")
 
   @@index([departmentId])
+  @@index([departmentLeadId])
+  @@index([isDepartmentLead])
 }
 
 model Department {

@@ -56,6 +56,15 @@ const department = await this.prisma.department.findUnique({
 if (!department) {
   throw new BadRequestException('Invalid department')
 }
+if (dto.departmentLeadId) {
+  const lead = await this.prisma.user.findUnique({
+    where: { id: dto.departmentLeadId },
+  })
+
+  if (!lead || lead.departmentId !== department.id || !lead.isDepartmentLead) {
+    throw new BadRequestException('Invalid department lead')
+  }
+}
     const hashedPassword = await bcrypt.hash(dto.password, 10)
 
     return this.prisma.user.create({
@@ -67,6 +76,8 @@ if (!department) {
         password: hashedPassword,
         role: dto.role,
         designation: dto.designation || null,
+        isDepartmentLead: Boolean(dto.isDepartmentLead),
+        departmentLeadId: dto.departmentLeadId || null,
         isActive: true,
         departmentId: department.id,
       },
@@ -135,6 +146,13 @@ async getUsers(query: any, requesterRole: string) {
     role: true,
     designation: true,
     isActive: true,
+    isDepartmentLead: true,
+    departmentLead: {
+      select: { id: true, firstName: true, lastName: true },
+    },
+    departmentTeamMembers: {
+      select: { id: true, firstName: true, lastName: true, email: true },
+    },
     department: {
       select: { id: true, name: true },
     },

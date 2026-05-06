@@ -23,6 +23,12 @@ export class DepartmentController {
     }
   }
 
+  private checkDepartmentManager(role: string) {
+    if (!['SUPER_ADMIN', 'DELIVERY_HEAD'].includes(role)) {
+      throw new ForbiddenException('Only Super Admin or Delivery Head allowed')
+    }
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post()
   async create(@Body('name') name: string, @Req() req) {
@@ -72,6 +78,28 @@ assignUser(
   @Body('userId') userId: string,
 ) {
   return this.service.assignUser(departmentId, userId)
+}
+@UseGuards(JwtAuthGuard)
+@Patch(':id/users/:userId/lead-status')
+setLeadStatus(
+  @Param('id') departmentId: string,
+  @Param('userId') userId: string,
+  @Body('isDepartmentLead') isDepartmentLead: boolean,
+  @Req() req,
+) {
+  this.checkDepartmentManager(req.user.role)
+  return this.service.setLeadStatus(departmentId, userId, isDepartmentLead)
+}
+@UseGuards(JwtAuthGuard)
+@Patch(':id/users/:userId/team-lead')
+assignTeamLead(
+  @Param('id') departmentId: string,
+  @Param('userId') userId: string,
+  @Body('leadId') leadId: string | null,
+  @Req() req,
+) {
+  this.checkDepartmentManager(req.user.role)
+  return this.service.assignTeamLead(departmentId, userId, leadId || null)
 }
 @UseGuards(JwtAuthGuard)
 @Get(':id/users')
