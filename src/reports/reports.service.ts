@@ -169,7 +169,7 @@ else if (type === 'team') {
   
 
     // 📄 PDF INIT
-    const doc = new PDFDocument({ margin: 40 })
+    const doc = new PDFDocument({ margin: 40, size: [595.28, 1000] })
 
     res.setHeader('Content-Type', 'application/pdf')
     const today = new Date().toISOString().split('T')[0]

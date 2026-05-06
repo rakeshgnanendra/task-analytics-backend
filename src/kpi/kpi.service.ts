@@ -600,7 +600,7 @@ export class KpiService {
 
   async generateKpiPdfReport(id: string, user: any, res: Response) {
     const { assignment, summary } = await this.getKpiReport(id, user)
-    const doc = new PDFDocument({ margin: 42, size: 'A4' })
+    const doc = new PDFDocument({ margin: 36, size: [595.28, 1000] })
     const today = new Date().toISOString().split('T')[0]
     const fileName = `KPI_${summary.employeeName.replace(/\s+/g, '_')}_${summary.financialYear.replace(/\s+/g, '_')}_${today}.pdf`
 
@@ -610,8 +610,8 @@ export class KpiService {
 
     const logoPath = path.join(process.cwd(), 'public', 'DP_logo.png')
     const pageWidth = doc.page.width
-    const left = 42
-    const right = pageWidth - 42
+    const left = 36
+    const right = pageWidth - 36
     const contentWidth = right - left
     const colors = {
       indigo: '#4f46e5',
@@ -626,9 +626,9 @@ export class KpiService {
     const trim = (text: string, max = 60) =>
       text && text.length > max ? `${text.substring(0, max)}...` : text || '-'
     const ensureSpace = (height: number) => {
-      if (doc.y + height > doc.page.height - 58) {
+      if (doc.y + height > doc.page.height - 52) {
         doc.addPage()
-        doc.y = 42
+        doc.y = 36
       }
     }
     const sectionTitle = (title: string) => {
@@ -654,17 +654,17 @@ export class KpiService {
       value: string,
       accent = colors.slate,
     ) => {
-      doc.roundedRect(x, y, width, 54, 6).strokeColor(colors.line).stroke()
+      doc.roundedRect(x, y, width, 48, 6).strokeColor(colors.line).stroke()
       doc
         .font('Helvetica')
         .fontSize(8)
         .fillColor(colors.muted)
-        .text(label, x + 10, y + 10, { width: width - 20, lineBreak: false })
+        .text(label, x + 10, y + 8, { width: width - 20, lineBreak: false })
       doc
         .font('Helvetica-Bold')
         .fontSize(14)
         .fillColor(accent)
-        .text(value, x + 10, y + 28, { width: width - 20, lineBreak: false })
+        .text(value, x + 10, y + 25, { width: width - 20, lineBreak: false })
     }
 
     doc
@@ -732,7 +732,7 @@ export class KpiService {
       summary.reviewStatus || '-',
       summary.reviewStatus === 'FINALIZED' ? colors.green : colors.slate,
     )
-    doc.y = cardY + 76
+    doc.y = cardY + 64
 
     sectionTitle('Employee Details')
     const detailRows = [
@@ -747,7 +747,7 @@ export class KpiService {
     const detailColWidth = contentWidth / 3
     detailRows.forEach(([label, value], index) => {
       const x = left + (index % 3) * detailColWidth
-      const y = detailY + Math.floor(index / 3) * 36
+      const y = detailY + Math.floor(index / 3) * 31
       doc
         .font('Helvetica')
         .fontSize(8)
@@ -762,7 +762,7 @@ export class KpiService {
           lineBreak: false,
         })
     })
-    doc.y = detailY + 82
+    doc.y = detailY + 68
 
     sectionTitle('KPI Breakdown')
 
@@ -782,7 +782,7 @@ export class KpiService {
     drawHeader()
 
     assignment.items.forEach((item, index) => {
-      const rowHeight = 48
+      const rowHeight = 42
       ensureSpace(rowHeight + 10)
       const y = doc.y
 
@@ -800,7 +800,7 @@ export class KpiService {
         .font('Helvetica')
         .fontSize(7.5)
         .fillColor(colors.muted)
-        .text(trim(item.goal || '', 48), left + 8, y + 22, {
+        .text(trim(item.goal || '', 48), left + 8, y + 20, {
           width: 150,
           lineBreak: false,
         })
