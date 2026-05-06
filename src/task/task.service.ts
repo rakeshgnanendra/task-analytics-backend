@@ -661,7 +661,7 @@ for (const uid of usersToNotify) {
   // =============================
   // GET TASKS (ROLE BASED)
   // =============================
-  async getTasks(userId: string, globalRole: string) {
+async getTasks(userId: string, globalRole: string) {
 
   if (globalRole === 'DELIVERY_HEAD') {
     return this.prisma.task.findMany({
@@ -683,13 +683,32 @@ for (const uid of usersToNotify) {
   })
 
   const projectIds = managerProjects.map(p => p.projectId)
+  const departmentLead = await this.prisma.user.findUnique({
+    where: { id: userId },
+    select: { departmentId: true, isDepartmentLead: true },
+  })
+  const leadTeamMembers = departmentLead?.isDepartmentLead
+    ? await this.prisma.user.findMany({
+        where: { departmentLeadId: userId },
+        select: { id: true },
+      })
+    : []
+  const leadTeamMemberIds = leadTeamMembers.map((member) => member.id)
 
   return this.prisma.task.findMany({
     where: {
       isDeleted: false,
       OR: [
         { assignedToId: userId },
-        { projectId: { in: projectIds } }
+        { projectId: { in: projectIds } },
+        ...(leadTeamMemberIds.length
+          ? [
+              {
+                departmentId: departmentLead?.departmentId,
+                assignedToId: { in: leadTeamMemberIds },
+              },
+            ]
+          : []),
       ]
     },
     include: this.taskChatInclude,
