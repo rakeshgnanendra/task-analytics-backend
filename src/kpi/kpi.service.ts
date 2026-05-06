@@ -40,6 +40,7 @@ export class KpiService {
     const now = new Date()
 
     return (
+      cycle.status === KpiCycleStatus.REVIEW_OPEN &&
       cycle.managerReviewStart &&
       cycle.managerReviewEnd &&
       now >= cycle.managerReviewStart &&
