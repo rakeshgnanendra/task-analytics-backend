@@ -39,6 +39,15 @@ export class KpiController {
     return this.kpiService.updateCycle(id, body, req.user)
   }
 
+  @Get('cycles/:id/summary/pdf')
+  getKpiCycleSummaryPdf(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    return this.kpiService.generateKpiCycleSummaryPdf(id, req.user, res)
+  }
+
   @Post('templates')
   createTemplate(@Body() body: any, @Req() req: any) {
     return this.kpiService.createTemplate(body, req.user)
