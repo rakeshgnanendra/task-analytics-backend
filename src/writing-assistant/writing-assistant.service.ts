@@ -13,6 +13,7 @@ export class WritingAssistantService {
   async improve(body: any) {
     const text = String(body.text || '').trim()
     const context = String(body.context || 'work update').trim()
+    const model = process.env.OPENAI_WRITING_MODEL || 'gpt-4o-mini'
 
     if (!text) {
       return { text: '', provider: 'none' }
@@ -24,6 +25,7 @@ export class WritingAssistantService {
       return {
         text: this.localPolish(text),
         provider: 'local',
+        message: 'OpenAI key is not configured on the backend.',
       }
     }
 
@@ -35,23 +37,16 @@ export class WritingAssistantService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: process.env.OPENAI_WRITING_MODEL || 'gpt-4.1-mini',
-          input: [
-            {
-              role: 'system',
-              content:
-                'Improve the text for grammar, clarity, and professional tone. Keep the meaning unchanged. Return only the revised text.',
-            },
-            {
-              role: 'user',
-              content: `Context: ${context}\n\nText:\n${text}`,
-            },
-          ],
+          model,
+          instructions:
+            'Improve the text for grammar, clarity, and professional tone. Keep the meaning unchanged. Return only the revised text.',
+          input: `Context: ${context}\n\nText:\n${text}`,
         }),
       })
 
       if (!response.ok) {
-        throw new Error('Writing assistant provider failed')
+        const errorText = await response.text()
+        throw new Error(errorText || 'Responses API failed')
       }
 
       const data: any = await response.json()
@@ -64,10 +59,56 @@ export class WritingAssistantService {
         text: String(improved || this.localPolish(text)).trim(),
         provider: 'openai',
       }
-    } catch {
-      return {
-        text: this.localPolish(text),
-        provider: 'local',
+    } catch (responsesError) {
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model,
+            temperature: 0.2,
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'Improve the text for grammar, clarity, and professional tone. Keep the meaning unchanged. Return only the revised text.',
+              },
+              {
+                role: 'user',
+                content: `Context: ${context}\n\nText:\n${text}`,
+              },
+            ],
+          }),
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(errorText || 'Chat completions API failed')
+        }
+
+        const data: any = await response.json()
+        const improved = data.choices?.[0]?.message?.content
+
+        return {
+          text: String(improved || this.localPolish(text)).trim(),
+          provider: 'openai',
+        }
+      } catch (chatError) {
+        console.error('Writing assistant OpenAI failed', {
+          responsesError:
+            responsesError instanceof Error ? responsesError.message : responsesError,
+          chatError: chatError instanceof Error ? chatError.message : chatError,
+        })
+
+        return {
+          text: this.localPolish(text),
+          provider: 'local',
+          message:
+            'OpenAI request failed. Check OPENAI_API_KEY, model access, billing, and Render redeploy.',
+        }
       }
     }
   }
