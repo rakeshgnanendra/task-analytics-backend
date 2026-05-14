@@ -2,6 +2,25 @@ import { Injectable } from '@nestjs/common'
 
 @Injectable()
 export class WritingAssistantService {
+  private async getOpenAiError(response: Response) {
+    const raw = await response.text()
+
+    try {
+      const parsed = JSON.parse(raw)
+      return parsed.error?.message || raw
+    } catch {
+      return raw
+    }
+  }
+
+  private cleanError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error || '')
+
+    return message
+      .replace(/sk-[A-Za-z0-9_-]+/g, 'sk-***')
+      .slice(0, 280)
+  }
+
   private localPolish(text: string) {
     return text
       .replace(/\s+/g, ' ')
@@ -19,7 +38,7 @@ export class WritingAssistantService {
       return { text: '', provider: 'none' }
     }
 
-    const apiKey = process.env.OPENAI_API_KEY
+    const apiKey = process.env.OPENAI_API_KEY?.trim()
 
     if (!apiKey) {
       return {
@@ -45,7 +64,7 @@ export class WritingAssistantService {
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
+        const errorText = await this.getOpenAiError(response)
         throw new Error(errorText || 'Responses API failed')
       }
 
@@ -85,7 +104,7 @@ export class WritingAssistantService {
         })
 
         if (!response.ok) {
-          const errorText = await response.text()
+          const errorText = await this.getOpenAiError(response)
           throw new Error(errorText || 'Chat completions API failed')
         }
 
@@ -98,16 +117,18 @@ export class WritingAssistantService {
         }
       } catch (chatError) {
         console.error('Writing assistant OpenAI failed', {
-          responsesError:
-            responsesError instanceof Error ? responsesError.message : responsesError,
-          chatError: chatError instanceof Error ? chatError.message : chatError,
+          responsesError: this.cleanError(responsesError),
+          chatError: this.cleanError(chatError),
         })
+
+        const cleanMessage = this.cleanError(chatError || responsesError)
 
         return {
           text: this.localPolish(text),
           provider: 'local',
-          message:
-            'OpenAI request failed. Check OPENAI_API_KEY, model access, billing, and Render redeploy.',
+          message: cleanMessage
+            ? `OpenAI failed: ${cleanMessage}`
+            : 'OpenAI request failed. Check OPENAI_API_KEY, model access, billing, and Render redeploy.',
         }
       }
     }
