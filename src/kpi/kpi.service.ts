@@ -20,8 +20,12 @@ import * as path from 'path'
 export class KpiService {
   constructor(private prisma: PrismaService) {}
 
-  private canManageKpi(user: any) {
+  private canViewAllKpi(user: any) {
     return ['SUPER_ADMIN', 'DELIVERY_HEAD', 'HR'].includes(user.role)
+  }
+
+  private canManageKpi(user: any) {
+    return ['SUPER_ADMIN', 'HR'].includes(user.role)
   }
 
   private canControlKpiCycle(user: any) {
@@ -36,7 +40,13 @@ export class KpiService {
 
   private assertCanManageKpi(user: any) {
     if (!this.canManageKpi(user)) {
-      throw new ForbiddenException('You cannot manage KPI records')
+      throw new ForbiddenException('Only HR or Super Admin can manage KPI records')
+    }
+  }
+
+  private assertCanViewAllKpi(user: any) {
+    if (!this.canViewAllKpi(user)) {
+      throw new ForbiddenException('You cannot view all KPI records')
     }
   }
 
@@ -473,7 +483,7 @@ export class KpiService {
     if (query.employeeId) where.employeeId = query.employeeId
     if (query.managerId) where.managerId = query.managerId
 
-    if (!this.canManageKpi(user)) {
+    if (!this.canViewAllKpi(user)) {
       where.OR = [{ employeeId: user.userId }, { managerId: user.userId }]
     }
 
@@ -545,7 +555,7 @@ export class KpiService {
     if (!assignment) throw new NotFoundException('KPI assignment not found')
 
     const isAllowed =
-      this.canManageKpi(user) ||
+      this.canViewAllKpi(user) ||
       assignment.employeeId === user.userId ||
       assignment.managerId === user.userId
 
@@ -600,7 +610,7 @@ export class KpiService {
     if (!assignment) throw new NotFoundException('KPI assignment not found')
 
     const isAllowed =
-      this.canManageKpi(user) ||
+      this.canViewAllKpi(user) ||
       assignment.employeeId === user.userId ||
       assignment.managerId === user.userId
 
@@ -1121,7 +1131,7 @@ export class KpiService {
   }
 
   async generateKpiCycleSummaryPdf(cycleId: string, user: any, res: Response) {
-    this.assertCanManageKpi(user)
+    this.assertCanViewAllKpi(user)
 
     const cycle = await this.prisma.kpiCycle.findUnique({
       where: { id: cycleId },
