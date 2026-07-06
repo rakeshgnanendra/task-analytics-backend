@@ -7,6 +7,28 @@ import { PrismaService } from 'src/prisma/prisma.service'
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
+  private async generateUniqueUsername(
+    firstName: string,
+    lastName: string,
+  ) {
+    const base = `${firstName}.${lastName}`
+      .replace(/\s+/g, '.')
+      .replace(/[^a-zA-Z0-9.]/g, '')
+      .replace(/\.+/g, '.')
+      .replace(/^\.|\.$/g, '')
+      || `user.${Date.now()}`
+
+    let username = base
+    let suffix = 1
+
+    while (await this.prisma.user.findUnique({ where: { username } })) {
+      username = `${base}.${suffix}`
+      suffix += 1
+    }
+
+    return username
+  }
+
   async createUser(dto: any, creatorRole: string) {
     // 🔐 Role hierarchy validation
     if (creatorRole === 'SUPER_ADMIN') {
@@ -66,12 +88,15 @@ if (dto.departmentLeadId) {
   }
 }
     const hashedPassword = await bcrypt.hash(dto.password, 10)
+    const username =
+      dto.username ||
+      (await this.generateUniqueUsername(dto.firstName, dto.lastName))
 
     return this.prisma.user.create({
       data: {
         firstName: dto.firstName,
         lastName: dto.lastName,
-        username: dto.username,
+        username,
         email: dto.email,
         password: hashedPassword,
         role: dto.role,
@@ -83,6 +108,123 @@ if (dto.departmentLeadId) {
       },
     })
   }
+async bulkCreateUsers(dto: any, creatorRole: string) {
+  if (creatorRole !== 'SUPER_ADMIN' && creatorRole !== 'DELIVERY_HEAD') {
+    throw new ForbiddenException('You cannot create users')
+  }
+
+  const rows = Array.isArray(dto?.users) ? dto.users : []
+
+  if (rows.length === 0) {
+    throw new BadRequestException('No users found in upload')
+  }
+
+  const results: any[] = []
+  let created = 0
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index] || {}
+    const rowNumber = index + 1
+
+    try {
+      const firstName = String(row.firstName || '').trim()
+      const lastName = String(row.lastName || '').trim()
+      const email = String(row.email || '').trim().toLowerCase()
+      const designation = String(row.designation || '').trim() || null
+      const requestedRole = String(row.role || GlobalRole.EMPLOYEE)
+        .trim()
+        .toUpperCase()
+      const departmentName = String(row.department || row.departmentName || '')
+        .trim()
+      const departmentId = String(row.departmentId || '').trim()
+
+      if (!firstName || !lastName || !email) {
+        throw new BadRequestException('firstName, lastName, and email are required')
+      }
+
+      if (!departmentName && !departmentId) {
+        throw new BadRequestException('department is required')
+      }
+
+      if (!Object.values(GlobalRole).includes(requestedRole as GlobalRole)) {
+        throw new BadRequestException(`Invalid role ${requestedRole}`)
+      }
+
+      if (
+        creatorRole === 'DELIVERY_HEAD' &&
+        requestedRole !== GlobalRole.EMPLOYEE &&
+        requestedRole !== GlobalRole.HR
+      ) {
+        throw new ForbiddenException(
+          'Delivery Head can only create Employee or HR users',
+        )
+      }
+
+      const existing = await this.prisma.user.findUnique({
+        where: { email },
+      })
+
+      if (existing) {
+        throw new BadRequestException('Email already exists')
+      }
+
+      let department = departmentId
+        ? await this.prisma.department.findUnique({
+            where: { id: departmentId },
+          })
+        : await this.prisma.department.findUnique({
+            where: { name: departmentName },
+          })
+
+      if (!department && creatorRole === 'SUPER_ADMIN' && departmentName) {
+        department = await this.prisma.department.create({
+          data: { name: departmentName },
+        })
+      }
+
+      if (!department) {
+        throw new BadRequestException(`Department not found: ${departmentName}`)
+      }
+
+      const username = await this.generateUniqueUsername(firstName, lastName)
+      const hashedPassword = await bcrypt.hash(
+        row.password || 'Password123',
+        10,
+      )
+
+      await this.prisma.user.create({
+        data: {
+          firstName,
+          lastName,
+          username,
+          email,
+          password: hashedPassword,
+          role: requestedRole as GlobalRole,
+          designation,
+          isActive: true,
+          departmentId: department.id,
+        },
+      })
+
+      created += 1
+      results.push({ row: rowNumber, email, status: 'CREATED' })
+    } catch (err) {
+      results.push({
+        row: rowNumber,
+        email: row.email || '',
+        status: 'FAILED',
+        message: err?.message || 'Failed to create user',
+      })
+    }
+  }
+
+  return {
+    total: rows.length,
+    created,
+    failed: rows.length - created,
+    results,
+  }
+}
 async toggleUserStatus(userId: string, requesterRole: string) {
 
   if (requesterRole !== 'SUPER_ADMIN' && requesterRole !== 'DELIVERY_HEAD') {

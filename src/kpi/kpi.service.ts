@@ -36,6 +36,23 @@ export class KpiService {
     }
   }
 
+  private async getActorId(user: any) {
+    if (!user?.userId && !user?.id && !user?.email) return null
+
+    const actor = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          user.userId ? { id: user.userId } : undefined,
+          user.id ? { id: user.id } : undefined,
+          user.email ? { email: user.email } : undefined,
+        ].filter(Boolean) as any,
+      },
+      select: { id: true },
+    })
+
+    return actor?.id || null
+  }
+
   private isReviewWindowOpen(cycle: any) {
     const now = new Date()
 
@@ -135,8 +152,10 @@ export class KpiService {
 
     const items = body.items || []
     const name = String(body.name || '').trim()
+    const role = body.role ? String(body.role).trim().toUpperCase() : null
     const designation = String(body.designation || '').trim() || null
     const departmentId = body.departmentId || null
+    const actorId = await this.getActorId(user)
     const totalWeight = items.reduce(
       (sum: number, item: any) => sum + Number(item.weight || 0),
       0,
@@ -150,6 +169,21 @@ export class KpiService {
       throw new BadRequestException('At least one KPI item is required')
     }
 
+    if (role && !Object.values(GlobalRole).includes(role as GlobalRole)) {
+      throw new BadRequestException(`Invalid KPI template role ${role}`)
+    }
+
+    if (departmentId) {
+      const department = await this.prisma.department.findUnique({
+        where: { id: departmentId },
+        select: { id: true },
+      })
+
+      if (!department) {
+        throw new BadRequestException('Invalid KPI template department')
+      }
+    }
+
     if (Math.round(totalWeight) !== 100) {
       throw new BadRequestException('KPI template weights must total 100')
     }
@@ -157,7 +191,7 @@ export class KpiService {
     const existingTemplate = await this.prisma.kpiTemplate.findFirst({
       where: {
         name,
-        role: body.role as GlobalRole,
+        role: role as GlobalRole,
         designation,
         departmentId,
       },
@@ -170,7 +204,7 @@ export class KpiService {
         where: { id: existingTemplate.id },
         data: {
           isActive: true,
-          createdById: existingTemplate.createdById || user.userId || user.id,
+          createdById: existingTemplate.createdById || actorId,
         },
       })
 
@@ -219,10 +253,10 @@ export class KpiService {
     return this.prisma.kpiTemplate.create({
       data: {
         name,
-        role: body.role as GlobalRole,
+        role: role as GlobalRole,
         designation,
         departmentId,
-        createdById: user.userId || user.id,
+        createdById: actorId,
         items: {
           create: items.map((item: any, index: number) => ({
             category: item.category,

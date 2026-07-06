@@ -25,6 +25,14 @@ export class UsersController {
     return this.usersService.createUser(dto, req.user.role)
   }
   @UseGuards(JwtAuthGuard)
+  @Post('bulk')
+  async bulkCreateUsers(
+    @Body() dto: any,
+    @Req() req: any,
+  ) {
+    return this.usersService.bulkCreateUsers(dto, req.user.role)
+  }
+  @UseGuards(JwtAuthGuard)
 @Patch(':id/toggle-status')
 async toggleUser(
   @Param('id') id: string,
