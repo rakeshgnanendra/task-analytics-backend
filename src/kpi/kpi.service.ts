@@ -627,6 +627,8 @@ export class KpiService {
         autoScore: assignment.autoScore,
         finalScore: assignment.finalScore,
         rating: latestFinalFeedback?.rating || '-',
+        selfSubmittedAt: assignment.selfSubmittedAt,
+        employeeSelfComments: assignment.employeeComments || '',
         managerFinalComments: assignment.managerFinalComments || '',
         employeeAcknowledgedAt: assignment.employeeAcknowledgedAt,
         employeeAcknowledgementComment:
@@ -661,6 +663,81 @@ export class KpiService {
         employeeAcknowledgedAt: new Date(),
         employeeAcknowledgementComment:
           String(body.comment || '').trim() || null,
+        employeeComments: String(body.comment || '').trim() || null,
+      },
+      include: {
+        employee: { select: { firstName: true, lastName: true, email: true } },
+        manager: { select: { firstName: true, lastName: true } },
+        cycle: true,
+        items: true,
+      },
+    })
+  }
+
+  async submitSelfAssessment(id: string, body: any, user: any) {
+    const assignment = await this.prisma.kpiAssignment.findUnique({
+      where: { id },
+      include: { cycle: true, items: true },
+    })
+
+    if (!assignment) throw new NotFoundException('KPI assignment not found')
+
+    if (assignment.employeeId !== user.userId) {
+      throw new ForbiddenException('Only the employee can submit self assessment')
+    }
+
+    if (!this.isReviewWindowOpen(assignment.cycle)) {
+      throw new ForbiddenException('KPI review window is closed')
+    }
+
+    if (assignment.selfSubmittedAt) {
+      throw new BadRequestException('Self assessment is already submitted')
+    }
+
+    if (assignment.status !== KpiAssignmentStatus.ASSIGNED) {
+      throw new BadRequestException('Self assessment can be submitted only before manager review')
+    }
+
+    const draftItems = Array.isArray(body.items) ? body.items : []
+    const draftById = new Map(draftItems.map((item: any) => [item.id, item]))
+
+    for (const item of assignment.items) {
+      const draft = draftById.get(item.id) as any
+      const employeeScore = Number(draft?.employeeScore ?? draft?.score)
+
+      if (
+        !draft ||
+        !Number.isFinite(employeeScore) ||
+        employeeScore < 0 ||
+        employeeScore > item.weight
+      ) {
+        throw new BadRequestException(
+          `${item.category} self score must be between 0 and ${item.weight}`,
+        )
+      }
+    }
+
+    await this.prisma.$transaction(
+      assignment.items.map((item) => {
+        const draft = draftById.get(item.id) as any
+
+        return this.prisma.kpiAssignmentItem.update({
+          where: { id: item.id },
+          data: {
+            employeeScore: Number(draft.employeeScore ?? draft.score),
+            employeeComments:
+              String(draft.employeeComments || draft.comments || '').trim() ||
+              null,
+          },
+        })
+      }),
+    )
+
+    return this.prisma.kpiAssignment.update({
+      where: { id },
+      data: {
+        status: KpiAssignmentStatus.SELF_ASSESSMENT_SUBMITTED,
+        selfSubmittedAt: new Date(),
         employeeComments: String(body.comment || '').trim() || null,
       },
       include: {
@@ -852,6 +929,7 @@ export class KpiService {
       ['Manager', summary.managerName],
       ['Cycle Start', formatDate(assignment.cycle.startDate)],
       ['Cycle End', formatDate(assignment.cycle.endDate)],
+      ['Self Assessment', summary.selfSubmittedAt ? formatDate(summary.selfSubmittedAt) : 'Pending'],
     ]
     const detailY = doc.y
     const detailColWidth = contentWidth / 3
@@ -872,19 +950,27 @@ export class KpiService {
           lineBreak: false,
         })
     })
-    doc.y = detailY + 68
+    doc.y = detailY + 96
 
     sectionTitle('KPI Breakdown')
 
     const drawHeader = () => {
       const y = doc.y
       doc.rect(left, y, contentWidth, 24).fill(colors.indigo)
-      doc.font('Helvetica-Bold').fontSize(8).fillColor('white')
-      doc.text('Category', left + 8, y + 8, { width: 150, lineBreak: false })
-      doc.text('Weight', left + 178, y + 8)
-      doc.text('Score', left + 236, y + 8)
-      doc.text('Tasks', left + 294, y + 8)
-      doc.text('Manager Comment', left + 350, y + 8)
+      doc.font('Helvetica-Bold').fontSize(7).fillColor('white')
+      doc.text('Category', left + 6, y + 8, { width: 108, lineBreak: false })
+      doc.text('Wt', left + 120, y + 8, { width: 24, align: 'right' })
+      doc.text('Emp', left + 152, y + 8, { width: 30, align: 'right' })
+      doc.text('Employee Comment', left + 190, y + 8, {
+        width: 102,
+        lineBreak: false,
+      })
+      doc.text('Mgr', left + 300, y + 8, { width: 30, align: 'right' })
+      doc.text('Tasks', left + 338, y + 8, { width: 34, align: 'right' })
+      doc.text('Manager Comment', left + 382, y + 8, {
+        width: contentWidth - 388,
+        lineBreak: false,
+      })
       doc.y = y + 24
       doc.fillColor(colors.slate)
     }
@@ -892,7 +978,20 @@ export class KpiService {
     drawHeader()
 
     assignment.items.forEach((item, index) => {
-      const rowHeight = 42
+      const employeeComment = trim(item.employeeComments || '-', 120)
+      const managerComment = trim(item.managerComments || '-', 120)
+      const employeeCommentHeight = doc.heightOfString(employeeComment, {
+        width: 102,
+        lineGap: 1.5,
+      })
+      const managerCommentHeight = doc.heightOfString(managerComment, {
+        width: contentWidth - 388,
+        lineGap: 1.5,
+      })
+      const rowHeight = Math.max(
+        46,
+        Math.min(88, Math.max(employeeCommentHeight, managerCommentHeight) + 18),
+      )
       ensureSpace(rowHeight + 10)
       const y = doc.y
 
@@ -901,35 +1000,57 @@ export class KpiService {
       }
       doc.rect(left, y, contentWidth, rowHeight).strokeColor(colors.line).stroke()
 
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(colors.slate)
-      doc.text(trim(item.category, 32), left + 8, y + 8, {
-        width: 150,
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(colors.slate)
+      doc.text(trim(item.category, 26), left + 6, y + 8, {
+        width: 108,
         lineBreak: false,
       })
       doc
         .font('Helvetica')
-        .fontSize(7.5)
+        .fontSize(6.8)
         .fillColor(colors.muted)
-        .text(trim(item.goal || '', 48), left + 8, y + 20, {
-          width: 150,
+        .text(trim(item.goal || '', 42), left + 6, y + 20, {
+          width: 108,
           lineBreak: false,
         })
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(colors.slate)
-      doc.text(`${item.weight}%`, left + 178, y + 15, { width: 44 })
-      doc.fillColor(colors.indigo).text(
-        `${Math.round(item.currentScore || 0)}`,
-        left + 236,
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(colors.slate)
+      doc.text(`${item.weight}%`, left + 120, y + 15, {
+        width: 24,
+        align: 'right',
+      })
+      doc.fillColor(colors.slate).text(
+        item.employeeScore == null ? '-' : `${Math.round(item.employeeScore)}`,
+        left + 152,
         y + 15,
-        { width: 40 },
+        { width: 30, align: 'right' },
       )
-      doc.fillColor(colors.slate).text(`${item.tasks?.length || 0}`, left + 294, y + 15)
       doc
         .font('Helvetica')
-        .fontSize(8)
+        .fontSize(7)
         .fillColor(colors.slate)
-        .text(trim(item.managerComments || '-', 72), left + 350, y + 10, {
-          width: contentWidth - 360,
-          lineBreak: false,
+        .text(employeeComment, left + 190, y + 10, {
+          width: 102,
+          lineGap: 1.5,
+        })
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(colors.indigo).text(
+        `${Math.round(item.currentScore || 0)}`,
+        left + 300,
+        y + 15,
+        { width: 30, align: 'right' },
+      )
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(colors.slate).text(
+        `${item.tasks?.length || 0}`,
+        left + 338,
+        y + 15,
+        { width: 34, align: 'right' },
+      )
+      doc
+        .font('Helvetica')
+        .fontSize(7)
+        .fillColor(colors.slate)
+        .text(managerComment, left + 382, y + 10, {
+          width: contentWidth - 388,
+          lineGap: 1.5,
         })
       doc.y = y + rowHeight
     })
@@ -1386,6 +1507,15 @@ export class KpiService {
 
     if (!this.isReviewWindowOpen(assignment.cycle)) {
       throw new ForbiddenException('KPI review window is closed')
+    }
+
+    if (
+      assignment.status !== KpiAssignmentStatus.SELF_ASSESSMENT_SUBMITTED &&
+      assignment.status !== KpiAssignmentStatus.REVIEWED
+    ) {
+      throw new BadRequestException(
+        'Manager review can start after employee self assessment is submitted',
+      )
     }
 
     const item = await this.prisma.kpiAssignmentItem.findFirst({

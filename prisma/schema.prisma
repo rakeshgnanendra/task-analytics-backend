@@ -247,6 +247,7 @@ model KpiAssignment {
   finalScore           Float               @default(0)
   managerFinalComments String?
   employeeComments     String?
+  selfSubmittedAt      DateTime?
   employeeAcknowledgedAt DateTime?
   employeeAcknowledgementComment String?
   createdAt            DateTime            @default(now())
@@ -278,6 +279,8 @@ model KpiAssignmentItem {
   qualityScore      Float            @default(0)
   productivityScore Float            @default(0)
   currentScore      Float            @default(0)
+  employeeScore     Float?
+  employeeComments  String?
   managerScore      Float?
   managerComments   String?
   assignment        KpiAssignment    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
@@ -353,6 +356,7 @@ enum KpiCycleStatus {
 enum KpiAssignmentStatus {
   DRAFT
   ASSIGNED
+  SELF_ASSESSMENT_SUBMITTED
   REVIEW_OPEN
   REVIEWED
   ACKNOWLEDGED
