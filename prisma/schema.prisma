@@ -45,6 +45,8 @@ model User {
   role                  GlobalRole        @default(EMPLOYEE)
   designation           String?
   isActive              Boolean           @default(true)
+  exitedAt              DateTime?
+  exitReason            String?
   isDepartmentLead      Boolean           @default(false)
   departmentLeadId      String?
   departmentId          String

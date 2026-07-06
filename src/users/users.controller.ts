@@ -33,6 +33,23 @@ async toggleUser(
   return this.usersService.toggleUserStatus(id, req.user.role)
 }
 @UseGuards(JwtAuthGuard)
+@Patch(':id/exit')
+async markExited(
+  @Param('id') id: string,
+  @Body('reason') reason: string,
+  @Req() req: any,
+) {
+  return this.usersService.markUserExited(id, req.user.role, reason)
+}
+@UseGuards(JwtAuthGuard)
+@Patch(':id/reactivate')
+async reactivateUser(
+  @Param('id') id: string,
+  @Req() req: any,
+) {
+  return this.usersService.reactivateUser(id, req.user.role)
+}
+@UseGuards(JwtAuthGuard)
 @Get()
 async getUsers(
   @Query() query: any,

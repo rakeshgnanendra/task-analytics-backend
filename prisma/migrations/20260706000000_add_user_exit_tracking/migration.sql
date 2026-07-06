@@ -1,0 +1,3 @@
+ALTER TABLE "User"
+ADD COLUMN "exitedAt" TIMESTAMP(3),
+ADD COLUMN "exitReason" TEXT;

@@ -105,6 +105,81 @@ async toggleUserStatus(userId: string, requesterRole: string) {
     where: { id: userId },
     data: {
       isActive: !user.isActive,
+      exitedAt: user.isActive ? new Date() : null,
+      exitReason: user.isActive ? 'Marked inactive' : null,
+    },
+  })
+}
+
+async markUserExited(
+  userId: string,
+  requesterRole: string,
+  reason?: string,
+) {
+  if (requesterRole !== 'SUPER_ADMIN' && requesterRole !== 'DELIVERY_HEAD') {
+    throw new ForbiddenException('Not allowed')
+  }
+
+  const user = await this.prisma.user.findUnique({
+    where: { id: userId },
+  })
+
+  if (!user) {
+    throw new BadRequestException('User not found')
+  }
+
+  if (user.role === 'SUPER_ADMIN') {
+    throw new ForbiddenException('Cannot mark Super Admin as exited')
+  }
+
+  if (requesterRole === 'DELIVERY_HEAD' && user.role === 'DELIVERY_HEAD') {
+    throw new ForbiddenException('Cannot mark Delivery Head as exited')
+  }
+
+  return this.prisma.$transaction(async (tx) => {
+    if (user.isDepartmentLead) {
+      await tx.user.updateMany({
+        where: { departmentLeadId: userId },
+        data: { departmentLeadId: null },
+      })
+    }
+
+    return tx.user.update({
+      where: { id: userId },
+      data: {
+        isActive: false,
+        exitedAt: new Date(),
+        exitReason: reason?.trim() || 'Exited organisation',
+        isDepartmentLead: false,
+        departmentLeadId: null,
+      },
+    })
+  })
+}
+
+async reactivateUser(userId: string, requesterRole: string) {
+  if (requesterRole !== 'SUPER_ADMIN' && requesterRole !== 'DELIVERY_HEAD') {
+    throw new ForbiddenException('Not allowed')
+  }
+
+  const user = await this.prisma.user.findUnique({
+    where: { id: userId },
+  })
+
+  if (!user) {
+    throw new BadRequestException('User not found')
+  }
+
+  if (requesterRole === 'DELIVERY_HEAD' && user.role === 'SUPER_ADMIN') {
+    throw new ForbiddenException('Cannot reactivate Super Admin')
+  }
+
+  return this.prisma.user.update({
+    where: { id: userId },
+    data: {
+      isActive: true,
+      exitedAt: null,
+      exitReason: null,
     },
   })
 }
@@ -146,6 +221,8 @@ async getUsers(query: any, requesterRole: string) {
     role: true,
     designation: true,
     isActive: true,
+    exitedAt: true,
+    exitReason: true,
     isDepartmentLead: true,
     departmentLead: {
       select: { id: true, firstName: true, lastName: true },
