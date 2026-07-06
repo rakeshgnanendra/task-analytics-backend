@@ -24,6 +24,10 @@ export class KpiService {
     return ['SUPER_ADMIN', 'DELIVERY_HEAD', 'HR'].includes(user.role)
   }
 
+  private canControlKpiCycle(user: any) {
+    return ['SUPER_ADMIN', 'HR'].includes(user.role)
+  }
+
   private toIstEndOfDay(date: Date) {
     const dueDate = new Date(date)
     dueDate.setUTCHours(18, 29, 59, 999)
@@ -33,6 +37,12 @@ export class KpiService {
   private assertCanManageKpi(user: any) {
     if (!this.canManageKpi(user)) {
       throw new ForbiddenException('You cannot manage KPI records')
+    }
+  }
+
+  private assertCanControlKpiCycle(user: any) {
+    if (!this.canControlKpiCycle(user)) {
+      throw new ForbiddenException('Only HR or Super Admin can manage KPI review cycles')
     }
   }
 
@@ -93,7 +103,7 @@ export class KpiService {
   }
 
   async createCycle(body: any, user: any) {
-    this.assertCanManageKpi(user)
+    this.assertCanControlKpiCycle(user)
 
     const fy = body.financialYear
       ? {
@@ -133,7 +143,7 @@ export class KpiService {
   }
 
   async updateCycle(id: string, body: any, user: any) {
-    this.assertCanManageKpi(user)
+    this.assertCanControlKpiCycle(user)
 
     return this.prisma.kpiCycle.update({
       where: { id },
@@ -1312,7 +1322,7 @@ export class KpiService {
       throw new ForbiddenException('Only HR/DH/manager can review KPI items')
     }
 
-    if (!this.isReviewWindowOpen(assignment.cycle) && !this.canManageKpi(user)) {
+    if (!this.isReviewWindowOpen(assignment.cycle)) {
       throw new ForbiddenException('KPI review window is closed')
     }
 
@@ -1364,7 +1374,7 @@ export class KpiService {
       throw new ForbiddenException('Only HR/DH/manager can add KPI feedback')
     }
 
-    if (!this.isReviewWindowOpen(assignment.cycle) && !this.canManageKpi(user)) {
+    if (!this.isReviewWindowOpen(assignment.cycle)) {
       throw new ForbiddenException('KPI review window is closed')
     }
 
