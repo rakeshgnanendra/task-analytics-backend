@@ -144,6 +144,10 @@ async markUserExited(
       })
     }
 
+    await tx.projectMember.deleteMany({
+      where: { userId },
+    })
+
     return tx.user.update({
       where: { id: userId },
       data: {
