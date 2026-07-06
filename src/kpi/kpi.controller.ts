@@ -68,6 +68,15 @@ export class KpiController {
     return this.kpiService.assignTemplate(body, req.user)
   }
 
+  @Patch('assignments/:id/manager')
+  changeAssignmentManager(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    return this.kpiService.changeAssignmentManager(id, body, req.user)
+  }
+
   @Get('assignments')
   getAssignments(@Query() query: any, @Req() req: any) {
     return this.kpiService.getAssignments(query, req.user)

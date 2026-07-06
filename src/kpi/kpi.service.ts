@@ -404,6 +404,68 @@ export class KpiService {
     return this.recalculateAssignment(assignment.id, user)
   }
 
+  async changeAssignmentManager(id: string, body: any, user: any) {
+    this.assertCanControlKpiCycle(user)
+
+    const assignment = await this.prisma.kpiAssignment.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        employeeId: true,
+        status: true,
+        employee: { select: { firstName: true, lastName: true } },
+      },
+    })
+
+    if (!assignment) throw new NotFoundException('KPI assignment not found')
+
+    if (
+      assignment.status === KpiAssignmentStatus.ACKNOWLEDGED ||
+      assignment.status === KpiAssignmentStatus.FINALIZED
+    ) {
+      throw new BadRequestException(
+        'Manager cannot be changed after employee acknowledgement or finalization',
+      )
+    }
+
+    const managerId = body.managerId || null
+
+    if (managerId) {
+      if (managerId === assignment.employeeId) {
+        throw new BadRequestException('Employee cannot be assigned as their own KPI manager')
+      }
+
+      const manager = await this.prisma.user.findFirst({
+        where: { id: managerId, isActive: true },
+        select: { id: true },
+      })
+
+      if (!manager) throw new NotFoundException('Selected manager not found')
+    }
+
+    return this.prisma.kpiAssignment.update({
+      where: { id },
+      data: { managerId },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+            designation: true,
+            department: true,
+          },
+        },
+        manager: { select: { id: true, firstName: true, lastName: true } },
+        cycle: true,
+        template: true,
+        items: true,
+      },
+    })
+  }
+
   async getAssignments(query: any, user: any) {
     const where: any = {}
 
