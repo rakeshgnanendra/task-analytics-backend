@@ -43,6 +43,10 @@ export class TaskService {
     return item.taskLinked && !this.isManagerOnlyKpiCategory(item.category)
   }
 
+  private isManualKpiCycle(cycle: any) {
+    return String(cycle?.financialYear || '').trim() === 'FY 2025-26'
+  }
+
   private async recalculateTaskKpi(task: any) {
     if (!task?.kpiAssignmentItemId) return
 
@@ -135,9 +139,10 @@ export class TaskService {
         },
       })
 
-      const score = this.isTaskLinkedKpiItem(item)
-        ? this.scoreKpiItem(tasks, item.weight)
-        : {
+      const score =
+        this.isTaskLinkedKpiItem(item) && !this.isManualKpiCycle(assignment.cycle)
+          ? this.scoreKpiItem(tasks, item.weight)
+          : {
             completionScore: 0,
             onTimeScore: 0,
             qualityScore: 0,

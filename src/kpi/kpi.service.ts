@@ -75,6 +75,10 @@ export class KpiService {
     return item.taskLinked && !this.isManagerOnlyKpiCategory(item.category)
   }
 
+  private isManualKpiCycle(cycle: any) {
+    return String(cycle?.financialYear || '').trim() === 'FY 2025-26'
+  }
+
   getCurrentFinancialYear(date = new Date()) {
     const month = date.getMonth()
     const year = date.getFullYear()
@@ -1249,9 +1253,10 @@ export class KpiService {
         },
       })
 
-      const score = this.isTaskLinkedKpiItem(item)
-        ? this.scoreItem(tasks, item.weight)
-        : {
+      const score =
+        this.isTaskLinkedKpiItem(item) && !this.isManualKpiCycle(assignment.cycle)
+          ? this.scoreItem(tasks, item.weight)
+          : {
             completionScore: 0,
             onTimeScore: 0,
             qualityScore: 0,
@@ -1334,7 +1339,8 @@ export class KpiService {
       data: {
         managerScore,
         managerComments: String(body.managerComments || '').trim() || null,
-        currentScore: this.isTaskLinkedKpiItem(item)
+        currentScore:
+          this.isTaskLinkedKpiItem(item) && !this.isManualKpiCycle(assignment.cycle)
           ? item.currentScore
           : managerScore,
       },
