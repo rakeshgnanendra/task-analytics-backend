@@ -1519,12 +1519,9 @@ export class KpiService {
       throw new ForbiddenException('KPI review window is closed')
     }
 
-    if (
-      assignment.status !== KpiAssignmentStatus.SELF_ASSESSMENT_SUBMITTED &&
-      assignment.status !== KpiAssignmentStatus.REVIEWED
-    ) {
+    if (assignment.status !== KpiAssignmentStatus.SELF_ASSESSMENT_SUBMITTED) {
       throw new BadRequestException(
-        'Manager review can start after employee self assessment is submitted',
+        'Manager review can be submitted only once after employee self assessment',
       )
     }
 
@@ -1578,6 +1575,12 @@ export class KpiService {
 
     if (!this.isReviewWindowOpen(assignment.cycle)) {
       throw new ForbiddenException('KPI review window is closed')
+    }
+
+    if (assignment.status !== KpiAssignmentStatus.SELF_ASSESSMENT_SUBMITTED) {
+      throw new BadRequestException(
+        'Final feedback can be submitted only once after employee self assessment',
+      )
     }
 
     const adjustment = Number(body.adjustment || 0)
